@@ -1,0 +1,141 @@
+"""Pydantic schemas for tenants and admins."""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
+
+class TariffPlanSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    max_messages: int
+    price_monthly: int
+    description: Optional[str] = None
+
+
+class TenantBase(BaseModel):
+    email: EmailStr
+    company_name: str
+    inn: Optional[str] = None
+    timezone: str = "Europe/Moscow"
+
+
+class TenantCreate(TenantBase):
+    password: str
+    tariff_id: Optional[int] = None
+
+
+class TenantUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    company_name: Optional[str] = None
+    inn: Optional[str] = None
+    tariff_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    is_blocked: Optional[bool] = None
+    timezone: Optional[str] = None
+
+
+class TenantSchema(TenantBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tariff_id: Optional[int] = None
+    used_messages: int
+    is_active: bool
+    is_blocked: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class TenantAdminBase(BaseModel):
+    email: EmailStr
+    role: str = "tenant_admin"
+
+
+class TenantAdminCreate(TenantAdminBase):
+    password: str
+    tenant_id: Optional[int] = None
+
+
+class TenantAdminSchema(TenantAdminBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: Optional[int] = None
+    created_at: datetime
+
+
+class TenantSettingsSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tenant_id: int
+    smart_delay_start: Optional[str] = None
+    smart_delay_end: Optional[str] = None
+    timezone: str = "Europe/Moscow"
+    rate_limit_5min: int = 30
+    rate_limit_10min: int = 50
+    duplicate_threshold: int = 5
+    followup_enabled: bool = True
+    followup_scenarios: Optional[dict] = None
+    followup_rate_limit: str = "1/4h"
+    crm_type: Optional[str] = None
+    crm_config: Optional[dict] = None
+    channel_config: Optional[dict] = None
+    system_prompt: Optional[str] = None
+
+
+class TenantSettingsUpdate(BaseModel):
+    smart_delay_start: Optional[str] = None
+    smart_delay_end: Optional[str] = None
+    timezone: Optional[str] = None
+    rate_limit_5min: Optional[int] = None
+    rate_limit_10min: Optional[int] = None
+    duplicate_threshold: Optional[int] = None
+    followup_enabled: Optional[bool] = None
+    followup_scenarios: Optional[dict] = None
+    followup_rate_limit: Optional[str] = None
+    crm_type: Optional[str] = None
+    crm_config: Optional[dict] = None
+    channel_config: Optional[dict] = None
+    system_prompt: Optional[str] = None
+
+
+class TenantListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    company_name: str
+    email: EmailStr
+    inn: Optional[str] = None
+    tariff_name: Optional[str] = None
+    max_messages: Optional[int] = None
+    used_messages: int
+    left_messages: int = 0
+    is_active: bool
+    is_blocked: bool
+    created_at: datetime
+    last_activity: Optional[datetime] = None
+    crm_type: Optional[str] = None
+    handoffs_count: int = 0
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    role: str
+    tenant_id: Optional[int] = None
+
+
+class MessageCountReset(BaseModel):
+    tenant_id: int
+    reset_at: datetime

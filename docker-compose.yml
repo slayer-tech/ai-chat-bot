@@ -1,0 +1,83 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_chat_bot_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ai_bot_net
+    volumes:
+      - ./uploads:/app/uploads
+      - /tmp/ai_bot_voice:/tmp/ai_bot_voice
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_chat_bot_celery
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ai_bot_net
+    volumes:
+      - ./uploads:/app/uploads
+      - /tmp/ai_bot_voice:/tmp/ai_bot_voice
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_chat_bot_beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ai_bot_net
+
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: ai_chat_bot_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_chat_bot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai_bot_net
+    # Not exposed externally; only accessible within the network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai_chat_bot_redis
+    restart: unless-stopped
+    networks:
+      - ai_bot_net
+    # Not exposed externally
+
+volumes:
+  postgres_data:
+
+networks:
+  ai_bot_net:
+    driver: bridge
