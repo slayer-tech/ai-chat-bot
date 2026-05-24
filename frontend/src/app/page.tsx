@@ -150,7 +150,7 @@ export default function Home() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mint opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-mint" />
             </span>
-            <span className="text-sm font-medium text-frost-200">7 дней бесплатно — без карты</span>
+            <span className="text-sm font-medium text-frost-200">7 дней бесплатно</span>
           </div>
 
           {/* Headline */}
@@ -315,7 +315,7 @@ export default function Home() {
               <span className="text-gradient-electric">тарифы</span>
             </h2>
             <p className="text-lg text-void-400 max-w-xl mx-auto">
-              7 дней бесплатно на любом тарифе. Без привязки карты.
+              7 дней бесплатно на любом тарифе.
             </p>
           </div>
 

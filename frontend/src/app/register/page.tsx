@@ -58,7 +58,7 @@ export default function RegisterPage() {
             Регистрация
           </h1>
           <p className="text-sm text-void-500">
-            7 дней бесплатно — без привязки карты
+            7 дней бесплатно
           </p>
         </div>
 
