@@ -39,7 +39,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="bg-elevated rounded-3xl p-8">
+        <div className="bento-card">
           {error && (
             <div className="mb-5 p-3 bg-red-500/5 text-red-400 rounded-xl text-sm font-medium">
               {error}

@@ -23,7 +23,7 @@ function NavItem({ icon, label, active }: { icon: JSX.Element; label: string; ac
 
 function StatCard({ label, value, subtext, subcolor = "text-muted" }: { label: string; value: string | number; subtext: string; subcolor?: string }) {
   return (
-    <div className="bg-elevated rounded-3xl p-6">
+    <div className="bento-card">
       <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">{label}</div>
       <div className="text-[32px] font-semibold text-text tracking-tight mb-1">{value}</div>
       <div className={`text-sm font-medium ${subcolor}`}>{subtext}</div>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Tariff info */}
-        <div className="bg-elevated rounded-3xl p-6 mb-8">
+        <div className="bento-card mb-8">
           <div className="flex justify-between items-start">
             <div className="flex-1">
               <h2 className="text-base font-semibold text-text mb-1">Тариф: Бизнес</h2>
@@ -181,7 +181,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Bot status */}
-        <div className="bg-elevated rounded-3xl p-6">
+        <div className="bento-card">
           <h2 className="text-base font-semibold text-text mb-4">Статус бота</h2>
           <div className="flex items-center gap-3">
             <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-red-400" : "bg-green-400"}`} />

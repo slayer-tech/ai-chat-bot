@@ -11,9 +11,9 @@ const config: Config = {
     extend: {
       colors: {
         void: "#08080c",
-        surface: "#0f0f16",
-        elevated: "#16161f",
-        "elevated-hover": "#1e1e2a",
+        surface: "#0d0d14",
+        elevated: "#14141c",
+        "elevated-hover": "#1c1c26",
         text: "#f5f5f7",
         muted: "#6b6b75",
         subtle: "#2a2a35",
@@ -31,7 +31,22 @@ const config: Config = {
         "38": "9.5rem",
       },
       maxWidth: {
-        "content": "1200px",
+        content: "1280px",
+      },
+      animation: {
+        marquee: "marquee 30s linear infinite",
+        float: "float 6s ease-in-out infinite",
+        pulse: "pulse 4s ease-in-out infinite",
+      },
+      keyframes: {
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
       },
     },
   },
