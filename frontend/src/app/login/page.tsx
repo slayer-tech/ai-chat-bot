@@ -28,7 +28,7 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center px-6 bg-surface">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <Link href="/" className="text-base font-semibold tracking-tight text-text">
+          <Link href="/" className="text-[15px] font-semibold tracking-tight text-text">
             AI Chat Bot
           </Link>
           <h1 className="text-[28px] font-semibold text-text mt-10 mb-2 tracking-tight">
