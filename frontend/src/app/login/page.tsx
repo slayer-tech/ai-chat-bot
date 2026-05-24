@@ -25,49 +25,50 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6 gradient-mesh">
-      <div className="w-full max-w-sm">
+    <main className="min-h-screen flex items-center justify-center px-6 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-aurora opacity-60" />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-electric/10 rounded-full blur-[128px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-mint/5 rounded-full blur-[96px]" />
+
+      <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-10">
-          <Link href="/" className="text-lg font-semibold text-ink tracking-tight">
+          <Link href="/" className="text-lg font-bold tracking-tight text-frost-100">
             AI Chat Bot
           </Link>
-          <h1 className="text-2xl font-semibold text-ink mt-8 mb-2 tracking-tight">
+          <h1 className="text-2xl font-bold text-frost-100 mt-8 mb-2 tracking-tight">
             Вход в аккаунт
           </h1>
-          <p className="text-sm text-ink-secondary">
+          <p className="text-sm text-void-500">
             Управляйте своим ИИ-ассистентом
           </p>
         </div>
 
-        <div className="bg-surface rounded-2xl border border-ink-quaternary/40 p-8 shadow-soft">
+        <div className="glass-card p-8">
           {error && (
-            <div className="mb-5 p-3 bg-danger/5 text-danger rounded-xl text-sm font-medium">
+            <div className="mb-5 p-3 bg-rose/5 border border-rose/10 text-rose rounded-xl text-sm font-medium">
               {error}
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-ink mb-2">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-frost-200 mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink-quaternary/50 bg-surface-secondary text-ink text-sm placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                className="input-premium"
                 placeholder="you@company.ru"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-2">
-                Пароль
-              </label>
+              <label className="block text-sm font-medium text-frost-200 mb-2">Пароль</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-ink-quaternary/50 bg-surface-secondary text-ink text-sm placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                className="input-premium"
                 placeholder="••••••••"
                 required
               />
@@ -75,16 +76,16 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white py-2.5 rounded-full text-sm font-medium hover:bg-primary-600 disabled:opacity-50 transition-all duration-200 hover:shadow-soft"
+              className="w-full btn-primary text-sm py-3 disabled:opacity-50"
             >
               {loading ? "Вход..." : "Войти"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-ink-secondary">
+            <p className="text-sm text-void-500">
               Ещё нет аккаунта?{" "}
-              <Link href="/register" className="text-primary font-medium hover:text-primary-700 transition-colors">
+              <Link href="/register" className="text-electric font-medium hover:text-electric-300 transition-colors">
                 Зарегистрироваться
               </Link>
             </p>

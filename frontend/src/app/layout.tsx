@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Onest } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth";
 
-const inter = Inter({
+const onest = Onest({
   subsets: ["latin", "cyrillic"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-onest",
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -20,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={inter.variable}>
-      <body className={`${inter.className} font-sans`}>
+    <html lang="ru" className={`${onest.variable} dark`}>
+      <body className={`${onest.className} font-body`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
