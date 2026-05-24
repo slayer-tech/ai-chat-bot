@@ -2,7 +2,7 @@ import Link from "next/link";
 
 function ArrowIcon() {
   return (
-    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12h14M12 5l7 7-7 7" />
     </svg>
   );
@@ -18,75 +18,21 @@ function CheckIcon() {
 
 const channels = ["WhatsApp", "Telegram", "Instagram", "VK", "Avito"];
 
-const features = [
-  {
-    title: "ИИ-диалоги",
-    desc: "Естественные разговоры на русском. Понимает контекст, отвечает по базе знаний. Клиент не отличит бота от человека.",
-  },
-  {
-    title: "RAG-база знаний",
-    desc: "Загружайте документы, прайсы, инструкции. Бот отвечает только по вашим материалам — без галлюцинаций.",
-  },
-  {
-    title: "Авто-дожим",
-    desc: "Автоматические напоминания клиентам. Настраиваемое время, timezone, тексты. Увеличивает конверсию на 40%.",
-  },
-  {
-    title: "Передача менеджеру",
-    desc: "Умная эскалация: по агрессии, по запросу, по неуверенности ИИ. Ни один важный клиент не потеряется.",
-  },
-  {
-    title: "Анти-спам",
-    desc: "Защита от флуда, матов и токсичности. Настраиваемые лимиты и автоматическая блокировка нарушителей.",
-  },
-  {
-    title: "CRM + Аналитика",
-    desc: "Интеграция с amoCRM и Битрикс24. Полная статистика по диалогам, конверсии и эффективности.",
-  },
-];
-
-const plans = [
-  {
-    name: "Старт",
-    price: "2 900",
-    period: "₽/мес",
-    messages: "500 сообщений",
-    features: ["WhatsApp, Telegram, VK", "RAG-база знаний", "Базовая аналитика", "Email поддержка"],
-    highlight: false,
-  },
-  {
-    name: "Бизнес",
-    price: "5 900",
-    period: "₽/мес",
-    messages: "2 000 сообщений",
-    features: ["Все каналы + Avito", "RAG + CRM интеграция", "Авто-дожим", "Умная передача менеджеру", "Приоритетная поддержка"],
-    highlight: true,
-  },
-  {
-    name: "Про",
-    price: "11 900",
-    period: "₽/мес",
-    messages: "5 000 сообщений",
-    features: ["Все функции Бизнеса", "Распознавание голоса", "Кастомный system prompt", "API доступ", "Личный менеджер"],
-    highlight: false,
-  },
-];
-
 export default function Home() {
   return (
     <main className="min-h-screen bg-void">
       {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 bg-void/80 backdrop-blur-xl border-b border-white/5">
+      <nav className="fixed top-0 w-full z-50 bg-void/70 backdrop-blur-2xl">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="flex justify-between items-center h-14">
-            <Link href="/" className="text-[17px] font-semibold tracking-tight text-text">
+          <div className="flex justify-between items-center h-16">
+            <Link href="/" className="text-base font-semibold tracking-tight text-text">
               AI Chat Bot
             </Link>
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-sm text-muted hover:text-text transition-colors duration-200">Возможности</a>
               <a href="#tariffs" className="text-sm text-muted hover:text-text transition-colors duration-200">Тарифы</a>
               <Link href="/login" className="text-sm text-muted hover:text-text transition-colors duration-200">Войти</Link>
-              <Link href="/register" className="bg-accent text-void text-sm font-semibold px-5 py-2 rounded-full hover:bg-accent-hover transition-colors duration-200">
+              <Link href="/register" className="btn-primary text-sm py-2 px-5">
                 Начать бесплатно
               </Link>
             </div>
@@ -95,21 +41,18 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-36 pb-24 md:pt-44 md:pb-32 px-6">
+      <section className="pt-40 pb-24 md:pt-52 md:pb-36 px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-[40px] sm:text-[56px] md:text-[72px] font-semibold tracking-tight leading-[1.1] text-text mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-semibold tracking-tight leading-[1.08] text-text mb-7">
             Автоматизируйте
             <br />
-            продажи в мессенджерах
+            продажи
           </h1>
-          <p className="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-4 leading-relaxed">
-            ИИ-ассистент, который отвечает клиентам круглосуточно.
-            Интеграция с CRM, база знаний, авто-дожим и умная передача менеджеру.
+          <p className="text-lg md:text-xl text-muted max-w-xl mx-auto mb-10 leading-relaxed">
+            ИИ-ассистент для WhatsApp, Telegram, Instagram, VK и Avito. 
+            Отвечает клиентам мгновенно, интегрируется с CRM, работает 24/7.
           </p>
-          <p className="text-sm text-muted mb-10">
-            Поддержка: {channels.join(", ")}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/register" className="btn-primary">
               Начать бесплатно
             </Link>
@@ -120,131 +63,303 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-20 md:py-28 px-6 bg-surface">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-8">
-            {[
-              { value: "24/7", label: "Работа бота" },
-              { value: "< 1 сек", label: "Скорость ответа" },
-              { value: "6+", label: "Каналов" },
-              { value: "152-ФЗ", label: "Соответствие" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-[32px] md:text-[40px] font-semibold text-text tracking-tight">{stat.value}</div>
-                <div className="text-sm text-muted mt-1">{stat.label}</div>
+      {/* Product Preview */}
+      <section className="px-6 pb-32">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-surface rounded-3xl p-6 md:p-10">
+            {/* Chat UI mock */}
+            <div className="max-w-md mx-auto">
+              <div className="flex items-center gap-3 pb-5 mb-5">
+                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" /></svg>
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-text">AI Ассистент</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span className="text-xs text-muted">Онлайн</span>
+                  </div>
+                </div>
               </div>
-            ))}
+              
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-elevated flex-shrink-0 mt-0.5" />
+                  <div className="bg-elevated rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-muted max-w-[240px]">
+                    Здравствуйте! Интересует стоимость доставки в Москву?
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 justify-end">
+                  <div className="bg-accent/15 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-text max-w-[240px]">
+                    Добрый день! Доставка в Москву бесплатная при заказе от 3000 ₽. Стоимость заказа?
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-elevated flex-shrink-0 mt-0.5" />
+                  <div className="bg-elevated rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-muted max-w-[240px]">
+                    У меня 4500 ₽. Когда привезёте?
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 justify-end">
+                  <div className="bg-accent/15 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-text max-w-[260px]">
+                    Отлично! Оформляю заказ. Доставка завтра с 10:00 до 14:00. Подтвердите адрес?
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-subtle">
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-elevated rounded-full">
+                  <span className="text-sm text-muted flex-1">Введите сообщение...</span>
+                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 md:py-32 px-6">
+      <section id="features" className="py-32 px-6 bg-surface">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-20 md:mb-28">
-            <h2 className="text-[32px] md:text-[48px] font-semibold tracking-tight text-text mb-4">
+          <div className="mb-24">
+            <h2 className="text-3xl md:text-5xl font-semibold tracking-tight text-text mb-5">
               Всё, что нужно для продаж
             </h2>
-            <p className="text-lg text-muted max-w-xl mx-auto">
+            <p className="text-lg text-muted max-w-lg leading-relaxed">
               Полный цикл автоматизации от первого сообщения до сделки в CRM
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-20">
-            {features.map((f, i) => (
-              <div key={f.title} className="group">
-                <h3 className="text-xl md:text-2xl font-semibold text-text mb-3 tracking-tight">{f.title}</h3>
-                <p className="text-[17px] text-muted leading-relaxed">{f.desc}</p>
+          {/* Feature 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center mb-24">
+            <div>
+              <h3 className="text-2xl md:text-3xl font-semibold text-text mb-4 tracking-tight">
+                ИИ-диалоги на уровне человека
+              </h3>
+              <p className="text-base text-muted leading-relaxed mb-6">
+                Естественные разговоры на русском. Понимает контекст, отвечает по базе знаний. 
+                Клиент не отличит бота от менеджера.
+              </p>
+              <p className="text-base text-muted leading-relaxed">
+                RAG-база знаний позволяет загружать документы, прайсы и инструкции. 
+                Бот отвечает только по вашим материалам, без галлюцинаций.
+              </p>
+            </div>
+            <div className="bg-elevated rounded-3xl p-8">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Понимание контекста диалога</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Ответы по загруженным документам</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Кастомный tone of voice</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Мгновенные ответы 24/7</span>
+                </div>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Feature 2 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center mb-24">
+            <div className="order-2 md:order-1 bg-elevated rounded-3xl p-8">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Автоматические напоминания</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Умная передача менеджеру по триггерам</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Защита от флуда и спама</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Интеграция с amoCRM и Битрикс24</span>
+                </div>
+              </div>
+            </div>
+            <div className="order-1 md:order-2">
+              <h3 className="text-2xl md:text-3xl font-semibold text-text mb-4 tracking-tight">
+                Авто-дожим и эскалация
+              </h3>
+              <p className="text-base text-muted leading-relaxed mb-6">
+                Автоматические напоминания клиентам с настраиваемым таймингом. 
+                Увеличивает конверсию на 40%.
+              </p>
+              <p className="text-base text-muted leading-relaxed">
+                Умная передача менеджеру по агрессии, запросу или неуверенности ИИ. 
+                Ни один важный клиент не потеряется.
+              </p>
+            </div>
+          </div>
+
+          {/* Feature 3 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 items-center">
+            <div>
+              <h3 className="text-2xl md:text-3xl font-semibold text-text mb-4 tracking-tight">
+                Безопасность и аналитика
+              </h3>
+              <p className="text-base text-muted leading-relaxed mb-6">
+                Защита от флуда, матов и токсичности. Настраиваемые лимиты и автоматическая блокировка.
+              </p>
+              <p className="text-base text-muted leading-relaxed">
+                Полная статистика по диалогам, конверсии и эффективности. Интеграция с amoCRM и Битрикс24.
+              </p>
+            </div>
+            <div className="bg-elevated rounded-3xl p-8">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Защита от спама и флуда</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Соответствие 152-ФЗ</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Детальная аналитика по каналам</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="text-sm text-muted">Экспорт отчётов</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Channels */}
-      <section className="py-20 md:py-28 px-6 bg-surface">
+      <section className="py-24 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-[32px] md:text-[48px] font-semibold tracking-tight text-text mb-4">
-            Все каналы в одном месте
+          <h2 className="text-3xl md:text-5xl font-semibold tracking-tight text-text mb-5">
+            Все каналы
           </h2>
-          <p className="text-lg text-muted max-w-xl mx-auto mb-16">
+          <p className="text-lg text-muted max-w-lg mx-auto mb-16 leading-relaxed">
             Подключайте любые мессенджеры и площадки. Единый интерфейс для всех диалогов.
           </p>
-          <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-6">
             {channels.map((ch) => (
-              <div key={ch} className="flex items-center gap-3 px-6 py-3 bg-elevated rounded-full">
-                <span className="text-[17px] font-medium text-text">{ch}</span>
-              </div>
+              <span key={ch} className="text-lg md:text-xl font-medium text-muted px-6 py-3">
+                {ch}
+              </span>
             ))}
           </div>
         </div>
       </section>
 
       {/* Tariffs */}
-      <section id="tariffs" className="py-24 md:py-32 px-6">
+      <section id="tariffs" className="py-32 px-6 bg-surface">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-20 md:mb-28">
-            <h2 className="text-[32px] md:text-[48px] font-semibold tracking-tight text-text mb-4">
-              Прозрачные тарифы
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-5xl font-semibold tracking-tight text-text mb-5">
+              Тарифы
             </h2>
-            <p className="text-lg text-muted max-w-xl mx-auto">
+            <p className="text-lg text-muted max-w-lg mx-auto leading-relaxed">
               7 дней бесплатно на любом тарифе
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`rounded-3xl p-8 ${
-                  plan.highlight
-                    ? "bg-elevated"
-                    : "bg-surface"
-                }`}
-              >
-                <div className="mb-6">
-                  <h3 className="text-xl font-semibold text-text mb-1">{plan.name}</h3>
-                  <p className="text-sm text-muted">{plan.messages}</p>
-                </div>
-                <div className="flex items-baseline mb-8">
-                  <span className="text-[48px] font-semibold text-text tracking-tight">{plan.price}</span>
-                  <span className="ml-2 text-lg text-muted">{plan.period}</span>
-                </div>
-                <ul className="space-y-4 mb-10">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-3">
-                      <CheckIcon />
-                      <span className="text-[15px] text-muted">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={`/register?plan=${plan.name.toLowerCase()}`}
-                  className={`block text-center w-full py-3 rounded-full text-[17px] font-semibold transition-colors duration-200 ${
-                    plan.highlight
-                      ? "bg-accent text-void hover:bg-accent-hover"
-                      : "bg-elevated text-text hover:bg-void border border-subtle"
-                  }`}
-                >
-                  Выбрать тариф
-                </Link>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            {/* Start */}
+            <div className="pt-8">
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold text-text mb-1">Старт</h3>
+                <p className="text-sm text-muted">500 сообщений / мес</p>
               </div>
-            ))}
+              <div className="flex items-baseline mb-8">
+                <span className="text-4xl font-semibold text-text tracking-tight">2 900</span>
+                <span className="ml-2 text-base text-muted">₽/мес</span>
+              </div>
+              <ul className="space-y-4 mb-10">
+                {["WhatsApp, Telegram, VK", "RAG-база знаний", "Базовая аналитика", "Email поддержка"].map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <CheckIcon />
+                    <span className="text-sm text-muted">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register?plan=start" className="block text-center w-full py-3 rounded-full text-base font-semibold bg-elevated text-text hover:bg-elevated-hover transition-colors duration-200">
+                Выбрать
+              </Link>
+            </div>
+
+            {/* Business - highlighted */}
+            <div className="bg-elevated rounded-3xl p-8">
+              <div className="inline-block px-3 py-1 bg-accent/10 text-accent text-xs font-semibold rounded-full mb-6">
+                Популярный
+              </div>
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold text-text mb-1">Бизнес</h3>
+                <p className="text-sm text-muted">2 000 сообщений / мес</p>
+              </div>
+              <div className="flex items-baseline mb-8">
+                <span className="text-4xl font-semibold text-text tracking-tight">5 900</span>
+                <span className="ml-2 text-base text-muted">₽/мес</span>
+              </div>
+              <ul className="space-y-4 mb-10">
+                {["Все каналы + Avito", "RAG + CRM интеграция", "Авто-дожим", "Умная передача менеджеру", "Приоритетная поддержка"].map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <CheckIcon />
+                    <span className="text-sm text-muted">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register?plan=business" className="block text-center w-full py-3 rounded-full text-base font-semibold bg-accent text-white hover:bg-accent-hover transition-colors duration-200">
+                Выбрать
+              </Link>
+            </div>
+
+            {/* Pro */}
+            <div className="pt-8">
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold text-text mb-1">Про</h3>
+                <p className="text-sm text-muted">5 000 сообщений / мес</p>
+              </div>
+              <div className="flex items-baseline mb-8">
+                <span className="text-4xl font-semibold text-text tracking-tight">11 900</span>
+                <span className="ml-2 text-base text-muted">₽/мес</span>
+              </div>
+              <ul className="space-y-4 mb-10">
+                {["Все функции Бизнеса", "Распознавание голоса", "Кастомный system prompt", "API доступ", "Личный менеджер"].map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <CheckIcon />
+                    <span className="text-sm text-muted">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register?plan=pro" className="block text-center w-full py-3 rounded-full text-base font-semibold bg-elevated text-text hover:bg-elevated-hover transition-colors duration-200">
+                Выбрать
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="py-24 md:py-32 px-6 bg-surface">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-[32px] md:text-[48px] font-semibold tracking-tight text-text mb-5">
-            Готовы автоматизировать продажи?
+      <section className="py-32 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl md:text-5xl font-semibold tracking-tight text-text mb-6">
+            Готовы начать?
           </h2>
-          <p className="text-lg text-muted mb-10 max-w-lg mx-auto">
-            Начните бесплатно за 2 минуты. Настройка не требует программирования.
+          <p className="text-lg text-muted mb-10 leading-relaxed">
+            Настройка занимает 2 минуты. Первые 7 дней бесплатно.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/register" className="btn-primary">
               Начать бесплатно
               <ArrowIcon />
@@ -257,9 +372,9 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 border-t border-white/5">
+      <footer className="py-10 px-6 bg-surface">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <span className="text-[15px] font-semibold text-text">
+          <span className="text-base font-semibold text-text">
             AI Chat Bot
           </span>
           <div className="flex gap-8">

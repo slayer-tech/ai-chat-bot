@@ -24,7 +24,7 @@ function NavItem({ icon, label, active }: { icon: JSX.Element; label: string; ac
 function StatCard({ label, value, subtext, subcolor = "text-muted" }: { label: string; value: string | number; subtext: string; subcolor?: string }) {
   return (
     <div className="bg-elevated rounded-3xl p-6">
-      <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{label}</div>
+      <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">{label}</div>
       <div className="text-[32px] font-semibold text-text tracking-tight mb-1">{value}</div>
       <div className={`text-sm font-medium ${subcolor}`}>{subtext}</div>
     </div>
@@ -52,7 +52,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-void text-text">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-56 bg-surface border-r border-white/5 z-40">
+      <aside className="fixed left-0 top-0 h-full w-56 bg-surface z-40">
         <div className="p-5">
           <Link href="/" className="text-[15px] font-semibold tracking-tight text-text">
             AI Chat Bot
@@ -95,7 +95,7 @@ export default function DashboardPage() {
           />
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium text-danger/60 hover:text-danger transition-colors duration-200 w-full mt-4"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium text-red-400/60 hover:text-red-400 transition-colors duration-200 w-full mt-4"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -115,8 +115,8 @@ export default function DashboardPage() {
               onClick={() => setBotPaused(!botPaused)}
               className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-200 ${
                 botPaused
-                  ? "bg-success/10 text-success"
-                  : "bg-danger/10 text-danger"
+                  ? "bg-green-500/10 text-green-400"
+                  : "bg-red-500/10 text-red-400"
               }`}
             >
               {botPaused ? "▶ Возобновить" : "⏸ Остановить"}
@@ -133,7 +133,7 @@ export default function DashboardPage() {
             label="Осталось сообщений"
             value={loading ? "—" : stats?.left_messages ?? 0}
             subtext={`из ${stats?.used_messages ?? 0} использовано`}
-            subcolor="text-success"
+            subcolor="text-green-400"
           />
           <StatCard
             label="Всего сообщений"
@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <button className="bg-void text-text px-5 py-2.5 rounded-full text-sm font-semibold border border-subtle hover:bg-surface transition-colors duration-200 ml-4">
+            <button className="bg-void text-text px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-surface transition-colors duration-200 ml-4">
               Сменить тариф
             </button>
           </div>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
         <div className="bg-elevated rounded-3xl p-6">
           <h2 className="text-base font-semibold text-text mb-4">Статус бота</h2>
           <div className="flex items-center gap-3">
-            <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-danger" : "bg-success"}`} />
+            <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-red-400" : "bg-green-400"}`} />
             <span className="text-sm text-muted font-medium">
               {botPaused ? "Бот остановлен" : "Бот активен и отвечает клиентам"}
             </span>

@@ -46,20 +46,20 @@ export default function RegisterPage() {
     <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-surface">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <Link href="/" className="text-[17px] font-semibold tracking-tight text-text">
+          <Link href="/" className="text-base font-semibold tracking-tight text-text">
             AI Chat Bot
           </Link>
           <h1 className="text-[28px] font-semibold text-text mt-10 mb-2 tracking-tight">
             Регистрация
           </h1>
-          <p className="text-[17px] text-muted">
+          <p className="text-base text-muted">
             7 дней бесплатно
           </p>
         </div>
 
         <div className="bg-elevated rounded-3xl p-8">
           {error && (
-            <div className="mb-5 p-3 bg-danger/5 text-danger rounded-xl text-sm font-medium">
+            <div className="mb-5 p-3 bg-red-500/5 text-red-400 rounded-xl text-sm font-medium">
               {error}
             </div>
           )}
