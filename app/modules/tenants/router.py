@@ -3,6 +3,8 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_audit
@@ -16,6 +18,7 @@ from app.core.security import (
     get_current_user,
     require_role,
 )
+from app.db.models import TenantAdmin
 from app.db.session import get_db
 from app.modules.tenants.service import (
     authenticate_admin,
@@ -40,6 +43,11 @@ from app.schemas.tenant import (
     TenantUpdate,
     TokenResponse,
 )
+
+
+class SuperAdminSetup(BaseModel):
+    email: str
+    password: str
 from app.clients.redis_client import get_redis
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
@@ -139,6 +147,27 @@ async def logout(request: Request) -> dict[str, str]:
             "1",
         )
     return {"status": "logged_out"}
+
+
+@router.post("/auth/setup-superadmin")
+async def setup_superadmin(
+    payload: SuperAdminSetup,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Create first superadmin if none exists. No auth required."""
+    existing = await db.scalar(select(TenantAdmin).where(TenantAdmin.role == "superadmin"))
+    if existing:
+        raise HTTPException(status_code=400, detail="Superadmin already exists")
+    admin = await create_admin(
+        db,
+        TenantAdminCreate(
+            email=payload.email,
+            password=payload.password,
+            tenant_id=1,
+            role="superadmin",
+        ),
+    )
+    return {"email": admin.email, "role": admin.role}
 
 
 # Superadmin routes
