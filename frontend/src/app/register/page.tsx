@@ -21,6 +21,10 @@ export default function RegisterPage() {
       setError("Пароли не совпадают");
       return;
     }
+    if (password.length < 6) {
+      setError("Пароль должен быть не менее 6 символов");
+      return;
+    }
     setLoading(true);
     try {
       await register(email, password);
@@ -33,69 +37,91 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center px-6 bg-void">
-      <div className="w-full max-w-sm">
+    <div className="min-h-[100dvh] flex items-center justify-center px-6 bg-void relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(255,107,91,0.06),transparent)]" />
+
+      <div className="relative w-full max-w-sm">
         <div className="text-center mb-10">
           <Link href="/" className="text-xl font-bold tracking-tight text-text">
-            AI Chat Bot
+            Relay
           </Link>
-          <h1 className="mt-8 text-2xl font-semibold tracking-tight text-text">Создать аккаунт</h1>
-          <p className="mt-2 text-muted text-sm">Начните автоматизацию за 2 минуты</p>
+          <h1 className="mt-8 text-2xl font-semibold tracking-tight text-text">
+            Регистрация
+          </h1>
+          <p className="mt-2 text-sm text-muted">Начните за 30 секунд</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text mb-1.5">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              className="input-premium"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text mb-1.5">Пароль</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="input-premium"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text mb-1.5">Подтвердите пароль</label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="••••••••"
-              className="input-premium"
-              required
-            />
-          </div>
+        <div className="card-shell">
+          <div className="card-core p-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className="input-premium"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">
+                  Пароль
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="input-premium"
+                  required
+                />
+                <p className="mt-1.5 text-xs text-muted">Минимум 6 символов</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-2">
+                  Повторите пароль
+                </label>
+                <input
+                  type="password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  className="input-premium"
+                  required
+                />
+              </div>
 
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
-              {error}
+              {error && (
+                <div className="text-sm text-accent bg-accent-soft/10 border border-accent/20 rounded-xl px-4 py-3">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full disabled:opacity-50"
+              >
+                {loading ? "Создание..." : "Создать аккаунт"}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-6 border-t border-border text-center">
+              <p className="text-xs text-muted">Никакой карты не нужно</p>
             </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full disabled:opacity-50"
-          >
-            {loading ? "Создание..." : "Создать аккаунт"}
-          </button>
-        </form>
+          </div>
+        </div>
 
         <p className="mt-8 text-center text-sm text-muted">
           Уже есть аккаунт?{" "}
-          <Link href="/login" className="font-medium text-accent hover:text-accent-hover transition-colors">
+          <Link
+            href="/login"
+            className="font-medium text-accent hover:text-accent-hover transition-colors"
+          >
             Войти
           </Link>
         </p>

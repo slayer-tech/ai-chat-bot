@@ -10,7 +10,7 @@ const onest = Onest({
 });
 
 export const metadata: Metadata = {
-  title: "AI Chat Bot — ИИ-ассистент для бизнеса",
+  title: "Relay — ИИ-ассистент для бизнеса",
   description:
     "Автоматизируйте общение с клиентами. ИИ отвечает 24/7, обучается на ваших данных, конвертирует диалоги в сделки.",
 };
@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={onest.variable}>
+    <html lang="ru" className={`${onest.variable} dark`}>
       <body className={`${onest.className} font-sans antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
