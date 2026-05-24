@@ -3,7 +3,11 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth";
 
-const inter = Inter({ subsets: ["latin", "cyrillic"] });
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "AI Chat Bot — Автоматизация продаж в мессенджерах",
@@ -16,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
-      <body className={inter.className}>
+    <html lang="ru" className={inter.variable}>
+      <body className={`${inter.className} font-sans`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
