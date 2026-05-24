@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="text-center mb-10">
           <Link href="/" className="text-xl font-bold tracking-tight text-text">
-            Relay
+            AI Chat Bot
           </Link>
           <h1 className="mt-8 text-2xl font-semibold tracking-tight text-text">
             Вход
@@ -43,8 +43,8 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-muted">Введите данные для входа</p>
         </div>
 
-        <div className="card-shell">
-          <div className="card-core p-8">
+        <div className="card">
+          <div className="card p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-text mb-2">

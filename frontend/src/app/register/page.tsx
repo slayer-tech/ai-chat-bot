@@ -43,7 +43,7 @@ export default function RegisterPage() {
       <div className="relative w-full max-w-sm">
         <div className="text-center mb-10">
           <Link href="/" className="text-xl font-bold tracking-tight text-text">
-            Relay
+            AI Chat Bot
           </Link>
           <h1 className="mt-8 text-2xl font-semibold tracking-tight text-text">
             Регистрация
@@ -51,8 +51,8 @@ export default function RegisterPage() {
           <p className="mt-2 text-sm text-muted">Начните за 30 секунд</p>
         </div>
 
-        <div className="card-shell">
-          <div className="card-core p-8">
+        <div className="card">
+          <div className="card p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-text mb-2">
@@ -111,7 +111,7 @@ export default function RegisterPage() {
             </form>
 
             <div className="mt-6 pt-6 border-t border-border text-center">
-              <p className="text-xs text-muted">Никакой карты не нужно</p>
+              <p className="text-xs text-muted">3 дня бесплатно</p>
             </div>
           </div>
         </div>

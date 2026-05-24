@@ -56,7 +56,7 @@ function Nav() {
           href="/"
           className="px-5 py-2 text-sm font-bold tracking-tight text-text"
         >
-          Relay
+          AI Chat Bot
         </Link>
         <div className="hidden md:flex items-center gap-1">
           <a href="#features" className="px-4 py-2 text-sm text-muted hover:text-text transition-colors duration-200">
@@ -157,7 +157,7 @@ function Hero() {
             inView ? "opacity-100" : "opacity-0"
           }`}
         >
-          Без карты. Настройка за 3 минуты.
+          3 дня бесплатно. Настройка за 3 минуты.
         </p>
       </div>
     </section>
@@ -172,13 +172,13 @@ function TrustBar() {
     { name: "Instagram", color: "#e4405f" },
     { name: "VK", color: "#4a76a8" },
     { name: "Avito", color: "#96c93d" },
-    { name: "Email", color: "#ea4335" },
+    { name: "MAX", color: "#ea4335" },
   ];
 
   const row = (
     <>
-      {channels.map((ch) => (
-        <div key={ch.name} className="flex items-center gap-3 px-8">
+      {channels.map((ch, idx) => (
+        <div key={`${ch.name}-${idx}`} className="flex items-center gap-3 px-8">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ch.color }} />
           <span className="text-base font-medium text-text-secondary whitespace-nowrap">
             {ch.name}
@@ -191,6 +191,8 @@ function TrustBar() {
   return (
     <section className="py-16 border-y border-border overflow-hidden">
       <div className="flex animate-marquee">
+        {row}
+        {row}
         {row}
         {row}
       </div>
@@ -222,8 +224,8 @@ function FeaturesBento() {
     },
     {
       span: "md:col-span-1 md:row-span-1",
-      title: "Аналитика диалогов",
-      body: "Смотрите, что спрашивают клиенты. Находите слабые места в продажах.",
+      title: "Авто-рассылка",
+      body: "ИИ анализирует контекст каждого диалога и сам предлагает клиентам релевантные услуги, акции и напоминания.",
     },
     {
       span: "md:col-span-2 md:row-span-1",
@@ -255,8 +257,8 @@ function FeaturesBento() {
               }`}
               style={{ transitionDelay: `${150 + i * 100}ms` }}
             >
-              <div className="card-shell h-full">
-                <div className="card-core h-full p-8 flex flex-col justify-between group hover:bg-elevated-hover transition-colors duration-500">
+              <div className="card h-full">
+                <div className="card h-full p-8 flex flex-col justify-between group hover:bg-elevated-hover transition-colors duration-500">
                   <div>
                     <h3 className="text-xl font-semibold text-text mb-3">
                       {card.title}
@@ -361,19 +363,11 @@ function PricingSection() {
 
   const plans = [
     {
-      name: "Free",
-      price: "0",
-      period: "навсегда",
-      features: ["100 сообщений / мес", "1 канал", "Базовая аналитика", "Email поддержка"],
-      cta: "Начать",
-      href: "/register",
-      highlight: false,
-    },
-    {
       name: "Pro",
       price: "2 900",
       period: "/ мес",
-      features: ["Безлимитные сообщения", "3 канала", "CRM-интеграция", "Приоритетная поддержка", "Расширенная аналитика"],
+      desc: "Для растущего бизнеса",
+      features: ["Безлимитные сообщения", "3 канала", "CRM-интеграция", "Приоритетная поддержка", "Авто-рассылки"],
       cta: "Выбрать Pro",
       href: "/register",
       highlight: true,
@@ -382,6 +376,7 @@ function PricingSection() {
       name: "Business",
       price: "9 900",
       period: "/ мес",
+      desc: "Для крупных команд",
       features: ["Безлимитные сообщения", "Все каналы", "API доступ", "White-label", "Персональный менеджер"],
       cta: "Связаться",
       href: "/register",
@@ -412,14 +407,8 @@ function PricingSection() {
               }`}
               style={{ transitionDelay: `${150 + i * 100}ms` }}
             >
-              <div
-                className={`card-shell h-full ${plan.highlight ? "ring-1 ring-accent/20" : ""}`}
-              >
-                <div
-                  className={`card-core h-full p-8 flex flex-col ${
-                    plan.highlight ? "bg-accent-soft/5" : ""
-                  }`}
-                >
+              <div className={`card h-full ${plan.highlight ? "ring-1 ring-accent/20" : ""}`}>
+                <div className={`card h-full p-8 flex flex-col ${plan.highlight ? "bg-accent-soft/5" : ""}`}>
                   {plan.highlight && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
                       Популярный
@@ -484,7 +473,7 @@ function CTASection() {
             →
           </span>
         </Link>
-        <p className="mt-6 text-xs text-muted">Без карты. Без обязательств.</p>
+        <p className="mt-6 text-xs text-muted">3 дня бесплатно. Без обязательств.</p>
       </div>
     </section>
   );
@@ -497,7 +486,7 @@ function Footer() {
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-4 gap-12 mb-16">
           <div className="md:col-span-1">
-            <span className="text-lg font-bold tracking-tight text-text">Relay</span>
+            <span className="text-lg font-bold tracking-tight text-text">AI Chat Bot</span>
             <p className="mt-4 text-sm text-muted leading-relaxed">
               ИИ-ассистент, который ведёт переговоры за вас.
             </p>
@@ -526,7 +515,7 @@ function Footer() {
           </div>
         </div>
         <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-xs text-muted">Relay, 2025</span>
+          <span className="text-xs text-muted">AI Chat Bot, 2025</span>
           <span className="text-xs text-muted">Все права защищены.</span>
         </div>
       </div>

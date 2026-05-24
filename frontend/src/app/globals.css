@@ -13,13 +13,12 @@
     overflow-x: hidden;
   }
   ::selection {
-    background: rgba(255, 107, 91, 0.25);
+    background: rgba(255, 107, 91, 0.3);
     color: #fff;
   }
 }
 
 @layer components {
-  /* Primary CTA — fully rounded pill with tactile feedback */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 bg-accent text-white font-semibold px-7 py-3 rounded-full transition-all duration-300 ease-spring;
   }
@@ -31,42 +30,36 @@
     transform: scale(0.98) translateY(1px);
   }
 
-  /* Secondary — ghost pill */
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 bg-transparent text-text font-medium px-7 py-3 rounded-full border border-border transition-all duration-300 ease-spring;
   }
   .btn-secondary:hover {
-    @apply bg-white/[0.03] border-border-hover;
+    @apply bg-white/[0.04] border-border-hover;
     transform: translateY(-1px);
   }
   .btn-secondary:active {
     transform: scale(0.98) translateY(1px);
   }
 
-  /* Input — dark surface with accent focus */
   .input-premium {
-    @apply w-full px-5 py-4 rounded-xl bg-surface text-text placeholder:text-muted outline-none transition-all duration-200 border border-border focus:border-accent/30 focus:ring-2 focus:ring-accent/10;
+    @apply w-full px-5 py-4 rounded-xl bg-surface text-text placeholder:text-muted outline-none transition-all duration-200 border border-border focus:border-accent/40 focus:ring-2 focus:ring-accent/15;
   }
 
-  /* Double-Bezel (Doppelrand) card — outer shell + inner core */
-  .card-shell {
-    @apply p-1.5 rounded-[2rem] bg-white/[0.02] ring-1 ring-white/[0.04];
+  .card {
+    @apply rounded-2xl bg-surface border border-border transition-all duration-300;
   }
-  .card-core {
-    @apply w-full h-full rounded-[calc(2rem-0.375rem)] bg-surface border border-white/[0.05] shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] overflow-hidden;
+  .card:hover {
+    @apply border-border-hover bg-elevated;
   }
 
-  /* Liquid Glass — true frosted glass with refraction */
   .glass {
-    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)];
+    @apply bg-white/[0.04] backdrop-blur-xl border border-white/[0.10] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)];
   }
 
-  /* Eyebrow tag */
   .eyebrow {
     @apply inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-medium text-muted;
   }
 
-  /* Typography scale */
   .heading-hero {
     @apply text-[clamp(2.5rem,5vw,5.5rem)] font-semibold tracking-tighter leading-[1.05] text-text;
   }
@@ -78,7 +71,6 @@
   }
 }
 
-/* Perpetual micro-interactions */
 @keyframes marquee {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
@@ -87,40 +79,10 @@
   animation: marquee 40s linear infinite;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
 @keyframes pulse-glow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 .animate-pulse-glow {
   animation: pulse-glow 4s ease-in-out infinite;
 }
-
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.animate-fade-up {
-  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Stagger delays */
-.stagger-1 { animation-delay: 0ms; }
-.stagger-2 { animation-delay: 100ms; }
-.stagger-3 { animation-delay: 200ms; }
-.stagger-4 { animation-delay: 300ms; }
-.stagger-5 { animation-delay: 400ms; }
-.stagger-6 { animation-delay: 500ms; }

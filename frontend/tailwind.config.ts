@@ -10,21 +10,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: "#0a0a0f",
-        surface: "#111118",
-        elevated: "#1a1a24",
-        "elevated-hover": "#22222e",
-        border: "rgba(255,255,255,0.06)",
-        "border-hover": "rgba(255,255,255,0.10)",
-        text: "#f0f0f5",
-        "text-secondary": "#a0a0ac",
-        muted: "#6e6e78",
+        void: "#0e0e16",
+        surface: "#161620",
+        elevated: "#1e1e2c",
+        "elevated-hover": "#28283a",
+        border: "rgba(255,255,255,0.08)",
+        "border-hover": "rgba(255,255,255,0.14)",
+        text: "#f4f4f8",
+        "text-secondary": "#b4b4c0",
+        muted: "#7a7a8a",
         accent: "#ff6b5b",
         "accent-hover": "#ff8578",
-        "accent-soft": "rgba(255,107,91,0.10)",
+        "accent-soft": "rgba(255,107,91,0.12)",
       },
       fontFamily: {
         sans: ["var(--font-geist)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
         "2xl": "1rem",
@@ -32,7 +33,7 @@ const config: Config = {
         "4xl": "2rem",
       },
       transitionTimingFunction: {
-        "spring": "cubic-bezier(0.32, 0.72, 0, 1)",
+        spring: "cubic-bezier(0.32, 0.72, 0, 1)",
       },
     },
   },

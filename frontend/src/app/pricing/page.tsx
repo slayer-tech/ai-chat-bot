@@ -8,21 +8,11 @@ export default function PricingPage() {
 
   const plans = [
     {
-      name: "Free",
-      price: "0",
-      period: "навсегда",
-      desc: "Для знакомства с продуктом",
-      features: ["100 сообщений / мес", "1 канал связи", "Базовая аналитика", "Email поддержка"],
-      cta: "Начать",
-      href: "/register",
-      highlight: false,
-    },
-    {
       name: "Pro",
       price: "2 900",
       period: "/ мес",
       desc: "Для растущего бизнеса",
-      features: ["Безлимитные сообщения", "3 канала связи", "Интеграция с CRM", "Приоритетная поддержка", "Расширенная аналитика"],
+      features: ["Безлимитные сообщения", "3 канала связи", "Интеграция с CRM", "Приоритетная поддержка", "Авто-рассылки"],
       cta: "Выбрать Pro",
       href: "/register",
       highlight: true,
@@ -45,7 +35,7 @@ export default function PricingPage() {
       <header className="glass sticky top-0 z-40 border-b border-border">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="text-base font-bold tracking-tight text-text">
-            Relay
+            AI Chat Bot
           </Link>
           <div className="flex items-center gap-4">
             {token ? (
@@ -83,8 +73,10 @@ export default function PricingPage() {
               key={plan.name}
               className={`relative ${plan.highlight ? "md:-mt-4 md:mb-4" : ""}`}
             >
-              <div className={`card-shell h-full ${plan.highlight ? "ring-1 ring-accent/20" : ""}`}>
-                <div className={`card-core h-full p-8 flex flex-col ${plan.highlight ? "bg-accent-soft/5" : ""}`}>
+              
+              <div className={`card h-full ${plan.highlight ? "ring-1 ring-accent/20" : ""}`}>
+                
+                <div className={`card h-full p-8 flex flex-col ${plan.highlight ? "bg-accent-soft/5" : ""}`}>
                   {plan.highlight && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
                       Популярный
@@ -132,11 +124,11 @@ export default function PricingPage() {
             </div>
             <div className="border-b border-border pb-6">
               <h3 className="text-base font-semibold text-text mb-2">Есть ли пробный период?</h3>
-              <p className="text-sm text-text-secondary">Free-тариф работает без ограничений по времени. Это полноценный способ протестировать продукт.</p>
+              <p className="text-sm text-text-secondary">Все тарифы — 3 дня бесплатно. Полный доступ ко всему функционалу.</p>
             </div>
             <div className="border-b border-border pb-6">
               <h3 className="text-base font-semibold text-text mb-2">Нужна ли карта?</h3>
-              <p className="text-sm text-text-secondary">Нет. Регистрация и использование Free-тарифа не требуют карты.</p>
+              <p className="text-sm text-text-secondary">Нет. Пробный период — 3 дня. Карта не нужна до оплаты.</p>
             </div>
           </div>
         </div>

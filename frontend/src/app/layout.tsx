@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Onest } from "next/font/google";
+import { Onest, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 
@@ -9,8 +9,14 @@ const onest = Onest({
   variable: "--font-geist",
 });
 
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  variable: "--font-mono",
+});
+
 export const metadata: Metadata = {
-  title: "Relay — ИИ-ассистент для бизнеса",
+  title: "AI Chat Bot — ИИ-ассистент для бизнеса",
   description:
     "Автоматизируйте общение с клиентами. ИИ отвечает 24/7, обучается на ваших данных, конвертирует диалоги в сделки.",
 };
@@ -21,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${onest.variable} dark`}>
+    <html lang="ru" className={`${onest.variable} ${jetbrains.variable} dark`}>
       <body className={`${onest.className} font-sans antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
