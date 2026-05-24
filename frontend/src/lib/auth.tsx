@@ -14,14 +14,10 @@ interface AuthContextType {
   token: string | null;
   tenantId: number | null;
   role: string | null;
+  user: { email: string } | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: {
-    email: string;
-    password: string;
-    company_name: string;
-    phone: string;
-  }) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -31,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<number | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [user, setUser] = useState<{ email: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -38,10 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const access = localStorage.getItem("access_token");
     const tid = localStorage.getItem("tenant_id");
     const r = localStorage.getItem("role");
+    const email = localStorage.getItem("user_email");
     if (access) {
       setToken(access);
       setTenantId(tid ? parseInt(tid) : null);
       setRole(r);
+      if (email) setUser({ email });
     }
     setIsLoading(false);
   }, []);
@@ -58,22 +57,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const data = await api.login({ email, password });
+    localStorage.setItem("user_email", email);
+    setUser({ email });
     saveTokens(data);
     router.push("/dashboard");
   };
 
-  const register = async (payload: {
-    email: string;
-    password: string;
-    company_name: string;
-    phone: string;
-  }) => {
+  const register = async (email: string, password: string) => {
     const data = await api.register({
-      email: payload.email,
-      password: payload.password,
-      company_name: payload.company_name,
-      inn: payload.phone,
+      email,
+      password,
+      company_name: email.split("@")[0],
     });
+    localStorage.setItem("user_email", email);
+    setUser({ email });
     saveTokens(data);
     router.push("/dashboard");
   };
@@ -84,15 +81,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("tenant_id");
     localStorage.removeItem("role");
+    localStorage.removeItem("user_email");
     setToken(null);
     setTenantId(null);
     setRole(null);
+    setUser(null);
     router.push("/login");
   };
 
   return (
     <AuthContext.Provider
-      value={{ token, tenantId, role, isLoading, login, register, logout }}
+      value={{ token, tenantId, role, user, isLoading, login, register, logout }}
     >
       {children}
     </AuthContext.Provider>

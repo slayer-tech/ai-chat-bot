@@ -58,6 +58,8 @@ async function fetchJson<T>(
 }
 
 export const api = {
+  get: <T = any>(path: string, options?: RequestInit) => fetchJson<T>(path, { ...options, method: "GET" }),
+
   register: (data: RegisterPayload) =>
     fetchJson<TokenResponse>("/api/v1/auth/register", {
       method: "POST",

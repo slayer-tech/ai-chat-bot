@@ -1,193 +1,118 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../lib/auth";
-import { api, DashboardStats } from "../../lib/api";
-
-function NavItem({ icon, label, active }: { icon: JSX.Element; label: string; active?: boolean }) {
-  return (
-    <a
-      href="#"
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium transition-colors duration-200 ${
-        active
-          ? "bg-accent/10 text-accent"
-          : "text-muted hover:text-text"
-      }`}
-    >
-      {icon}
-      {label}
-    </a>
-  );
-}
-
-function StatCard({ label, value, subtext, subcolor = "text-muted" }: { label: string; value: string | number; subtext: string; subcolor?: string }) {
-  return (
-    <div className="bento-card">
-      <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">{label}</div>
-      <div className="text-[32px] font-semibold text-text tracking-tight mb-1">{value}</div>
-      <div className={`text-sm font-medium ${subcolor}`}>{subtext}</div>
-    </div>
-  );
-}
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 
 export default function DashboardPage() {
-  const { logout, token } = useAuth();
-  const [botPaused, setBotPaused] = useState(false);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const { user, logout, token } = useAuth();
+  const router = useRouter();
+  const [tenant, setTenant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
-    api
-      .dashboard()
-      .then(setStats)
+    api.get("/tenants/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setTenant(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
 
-  const totalMessages = (stats?.used_messages ?? 0) + (stats?.left_messages ?? 0) || 2000;
-  const usagePercent = Math.min(((stats?.used_messages ?? 0) / totalMessages) * 100, 100);
+  if (!user && typeof window !== "undefined") {
+    router.push("/login");
+    return null;
+  }
+
+  const usage = tenant
+    ? Math.round(((tenant.used_messages || 0) / Math.max(tenant.max_messages || 1, 1)) * 100)
+    : 0;
 
   return (
-    <div className="min-h-screen bg-void text-text">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-56 bg-surface z-40">
-        <div className="p-5">
-          <Link href="/" className="text-[15px] font-semibold tracking-tight text-text">
+    <div className="min-h-[100dvh] bg-void">
+      {/* Header */}
+      <header className="bg-white border-b border-border sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/" className="text-base font-bold tracking-tight text-text">
             AI Chat Bot
           </Link>
-        </div>
-        <nav className="px-3 space-y-0.5">
-          <NavItem
-            active
-            label="Дашборд"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-              </svg>
-            }
-          />
-          <NavItem
-            label="Диалоги"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-              </svg>
-            }
-          />
-          <NavItem
-            label="Настройки"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.212 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            }
-          />
-          <NavItem
-            label="Аналитика"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-              </svg>
-            }
-          />
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium text-red-400/60 hover:text-red-400 transition-colors duration-200 w-full mt-4"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-            </svg>
-            Выйти
-          </button>
-        </nav>
-      </aside>
-
-      {/* Main content */}
-      <main className="ml-56 p-8 min-h-screen">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <h1 className="text-[28px] font-semibold text-text tracking-tight">Дашборд</h1>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setBotPaused(!botPaused)}
-              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-200 ${
-                botPaused
-                  ? "bg-green-500/10 text-green-400"
-                  : "bg-red-500/10 text-red-400"
-              }`}
-            >
-              {botPaused ? "▶ Возобновить" : "⏸ Остановить"}
+            <span className="text-sm text-muted">{user?.email}</span>
+            <button onClick={logout} className="text-sm font-medium text-accent hover:text-accent-hover transition-colors">
+              Выйти
             </button>
-            <div className="w-9 h-9 bg-accent/10 rounded-full flex items-center justify-center text-accent text-sm font-bold">
-              А
-            </div>
           </div>
         </div>
+      </header>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            label="Осталось сообщений"
-            value={loading ? "—" : stats?.left_messages ?? 0}
-            subtext={`из ${stats?.used_messages ?? 0} использовано`}
-            subcolor="text-green-400"
-          />
-          <StatCard
-            label="Всего сообщений"
-            value={loading ? "—" : stats?.total_messages ?? 0}
-            subtext={`${stats?.unique_users_7d ?? 0} уникальных за 7 дней`}
-          />
-          <StatCard
-            label="Передано менеджеру"
-            value={loading ? "—" : stats?.handoffs_count ?? 0}
-            subtext="handoff"
-          />
-          <StatCard
-            label="Баланс"
-            value="0 ₽"
-            subtext="Пополнить"
-            subcolor="text-accent"
-          />
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        <div className="mb-10">
+          <h1 className="text-2xl font-semibold tracking-tight text-text">Кабинет</h1>
+          <p className="text-muted mt-1">Управление аккаунтом и ботом</p>
         </div>
 
-        {/* Tariff info */}
-        <div className="bento-card mb-8">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h2 className="text-base font-semibold text-text mb-1">Тариф: Бизнес</h2>
-              <p className="text-sm text-muted mb-5">2000 сообщений/мес · CRM · Авто-дожим</p>
-              <div className="w-full max-w-md">
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-muted font-medium uppercase tracking-wider">Использовано</span>
-                  <span className="text-text font-semibold">
-                    {stats?.used_messages ?? 0} / {totalMessages}
-                  </span>
-                </div>
-                <div className="w-full bg-void rounded-full h-2">
-                  <div
-                    className="bg-accent h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${usagePercent}%` }}
-                  />
-                </div>
+        {loading ? (
+          <div className="text-muted">Загрузка...</div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Usage Card */}
+            <div className="bg-white rounded-xl border border-border p-6">
+              <p className="text-sm text-muted mb-1">Сообщений использовано</p>
+              <p className="text-3xl font-bold text-text">
+                {tenant?.used_messages || 0}
+                <span className="text-lg text-muted font-normal">
+                  {" "}/ {tenant?.max_messages || 0}
+                </span>
+              </p>
+              <div className="mt-4 h-2 bg-elevated rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(usage, 100)}%` }}
+                />
               </div>
+              <p className="text-xs text-muted mt-2">{usage}% от лимита</p>
             </div>
-            <button className="bg-void text-text px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-surface transition-colors duration-200 ml-4">
-              Сменить тариф
-            </button>
-          </div>
-        </div>
 
-        {/* Bot status */}
-        <div className="bento-card">
-          <h2 className="text-base font-semibold text-text mb-4">Статус бота</h2>
-          <div className="flex items-center gap-3">
-            <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-red-400" : "bg-green-400"}`} />
-            <span className="text-sm text-muted font-medium">
-              {botPaused ? "Бот остановлен" : "Бот активен и отвечает клиентам"}
-            </span>
+            {/* Plan Card */}
+            <div className="bg-white rounded-xl border border-border p-6">
+              <p className="text-sm text-muted mb-1">Тариф</p>
+              <p className="text-3xl font-bold text-text">{tenant?.tariff || "Free"}</p>
+              <p className="text-sm text-muted mt-2">
+                {tenant?.tariff === "Free"
+                  ? "Базовый функционал"
+                  : tenant?.tariff === "Pro"
+                  ? "Расширенные возможности"
+                  : "Полный доступ"}
+              </p>
+            </div>
+
+            {/* Status Card */}
+            <div className="bg-white rounded-xl border border-border p-6">
+              <p className="text-sm text-muted mb-1">Статус бота</p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
+                <span className="text-lg font-semibold text-text">Активен</span>
+              </div>
+              <p className="text-sm text-muted mt-2">Отвечает на входящие сообщения</p>
+            </div>
+          </div>
+        )}
+
+        {/* Integrations */}
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-text mb-4">Каналы</h2>
+          <div className="bg-white rounded-xl border border-border p-6">
+            <div className="flex flex-wrap gap-3">
+              {["WhatsApp", "Telegram", "Instagram", "VK"].map((ch) => (
+                <span
+                  key={ch}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-elevated text-sm font-medium text-text"
+                >
+                  {ch}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </main>
