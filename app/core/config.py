@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # Followup
     FOLLOWUP_DEFAULT_RATE_LIMIT: str = "1/4h"
 
+    # Superadmin auto-seed (leave empty to skip)
+    SUPERADMIN_EMAIL: str = ""
+    SUPERADMIN_PASSWORD: str = ""
+
     @property
     def sync_database_url(self) -> str:
         return self.DATABASE_URL.replace("+asyncpg", "")

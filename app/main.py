@@ -9,8 +9,10 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.core.security import get_password_hash
 from app.db.base import Base
-from app.db.session import engine
+from app.db.models import TenantAdmin
+from app.db.session import AsyncSessionLocal, engine
 from app.modules.admin_dashboard.router import super_dashboard, tenant_dashboard
 from app.modules.channels.router import router as webhook_router
 from app.modules.crm_adapter.router import router as crm_webhook_router
@@ -28,6 +30,21 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown."""
     # Startup
     logger.info("app_startup", app=settings.APP_NAME)
+    # Seed superadmin from env if configured
+    if settings.SUPERADMIN_EMAIL and settings.SUPERADMIN_PASSWORD:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            existing = await db.scalar(select(TenantAdmin).where(TenantAdmin.role == "superadmin"))
+            if not existing:
+                admin = TenantAdmin(
+                    tenant_id=1,
+                    email=settings.SUPERADMIN_EMAIL,
+                    password_hash=get_password_hash(settings.SUPERADMIN_PASSWORD),
+                    role="superadmin",
+                )
+                db.add(admin)
+                await db.commit()
+                logger.info("superadmin_created", email=admin.email)
     yield
     # Shutdown
     await close_redis()
