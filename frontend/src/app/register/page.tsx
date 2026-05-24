@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAuth } from "../../lib/auth";
+import { useAuth } from "@/lib/auth";
 
 export default function RegisterPage() {
   const { register } = useAuth();
