@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth";
-import { api, DashboardStats } from "@/lib/api";
+import { useAuth } from "../../lib/auth";
+import { api, DashboardStats } from "../../lib/api";
 
 export default function DashboardPage() {
   const { logout, token } = useAuth();
