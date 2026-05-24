@@ -9,10 +9,10 @@ function NavItem({ icon, label, active }: { icon: JSX.Element; label: string; ac
   return (
     <a
       href="#"
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium transition-colors duration-200 ${
         active
-          ? "bg-electric/10 text-electric border border-electric/10"
-          : "text-void-500 hover:text-frost-200 hover:bg-void-800/50"
+          ? "bg-accent/10 text-accent"
+          : "text-muted hover:text-text"
       }`}
     >
       {icon}
@@ -21,12 +21,12 @@ function NavItem({ icon, label, active }: { icon: JSX.Element; label: string; ac
   );
 }
 
-function StatCard({ label, value, subtext, subcolor = "text-void-500" }: { label: string; value: string | number; subtext: string; subcolor?: string }) {
+function StatCard({ label, value, subtext, subcolor = "text-muted" }: { label: string; value: string | number; subtext: string; subcolor?: string }) {
   return (
-    <div className="glass-card p-5">
-      <div className="text-[11px] font-semibold text-void-500 uppercase tracking-widest mb-2">{label}</div>
-      <div className="text-2xl font-bold text-frost-100 mb-1">{value}</div>
-      <div className={`text-xs font-medium ${subcolor}`}>{subtext}</div>
+    <div className="bg-elevated rounded-3xl p-6">
+      <div className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{label}</div>
+      <div className="text-[32px] font-semibold text-text tracking-tight mb-1">{value}</div>
+      <div className={`text-sm font-medium ${subcolor}`}>{subtext}</div>
     </div>
   );
 }
@@ -50,11 +50,11 @@ export default function DashboardPage() {
   const usagePercent = Math.min(((stats?.used_messages ?? 0) / totalMessages) * 100, 100);
 
   return (
-    <div className="min-h-screen bg-void text-frost-100">
+    <div className="min-h-screen bg-void text-text">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-56 bg-void-950/80 backdrop-blur-2xl border-r border-white/[0.04] z-40">
+      <aside className="fixed left-0 top-0 h-full w-56 bg-surface border-r border-white/5 z-40">
         <div className="p-5">
-          <Link href="/" className="text-base font-bold tracking-tight text-frost-100">
+          <Link href="/" className="text-[15px] font-semibold tracking-tight text-text">
             AI Chat Bot
           </Link>
         </div>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
             }
           />
           <NavItem
-            label="Настройки бота"
+            label="Настройки"
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.212 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -93,17 +93,9 @@ export default function DashboardPage() {
               </svg>
             }
           />
-          <NavItem
-            label="Профиль"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-            }
-          />
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose/70 hover:text-rose hover:bg-rose/5 transition-all duration-300 w-full mt-4"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-medium text-danger/60 hover:text-danger transition-colors duration-200 w-full mt-4"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -114,22 +106,22 @@ export default function DashboardPage() {
       </aside>
 
       {/* Main content */}
-      <main className="ml-56 p-8 min-h-screen bg-void">
+      <main className="ml-56 p-8 min-h-screen">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-xl font-bold text-frost-100 tracking-tight">Дашборд</h1>
+        <div className="flex justify-between items-center mb-10">
+          <h1 className="text-[28px] font-semibold text-text tracking-tight">Дашборд</h1>
           <div className="flex items-center gap-4">
             <button
               onClick={() => setBotPaused(!botPaused)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+              className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-colors duration-200 ${
                 botPaused
-                  ? "bg-mint/10 text-mint border border-mint/20 hover:bg-mint/20"
-                  : "bg-rose/10 text-rose border border-rose/20 hover:bg-rose/20"
+                  ? "bg-success/10 text-success"
+                  : "bg-danger/10 text-danger"
               }`}
             >
               {botPaused ? "▶ Возобновить" : "⏸ Остановить"}
             </button>
-            <div className="w-9 h-9 bg-electric/20 rounded-full flex items-center justify-center text-electric text-sm font-bold border border-electric/20">
+            <div className="w-9 h-9 bg-accent/10 rounded-full flex items-center justify-center text-accent text-sm font-bold">
               А
             </div>
           </div>
@@ -141,7 +133,7 @@ export default function DashboardPage() {
             label="Осталось сообщений"
             value={loading ? "—" : stats?.left_messages ?? 0}
             subtext={`из ${stats?.used_messages ?? 0} использовано`}
-            subcolor="text-mint"
+            subcolor="text-success"
           />
           <StatCard
             label="Всего сообщений"
@@ -157,46 +149,43 @@ export default function DashboardPage() {
             label="Баланс"
             value="0 ₽"
             subtext="Пополнить"
-            subcolor="text-electric"
+            subcolor="text-accent"
           />
         </div>
 
         {/* Tariff info */}
-        <div className="glass-card p-6 mb-8">
+        <div className="bg-elevated rounded-3xl p-6 mb-8">
           <div className="flex justify-between items-start">
             <div className="flex-1">
-              <h2 className="text-base font-semibold text-frost-100 mb-1">Тариф: Бизнес</h2>
-              <p className="text-sm text-void-500 mb-5">2000 сообщений/мес · CRM · Авто-дожим</p>
+              <h2 className="text-base font-semibold text-text mb-1">Тариф: Бизнес</h2>
+              <p className="text-sm text-muted mb-5">2000 сообщений/мес · CRM · Авто-дожим</p>
               <div className="w-full max-w-md">
                 <div className="flex justify-between text-xs mb-2">
-                  <span className="text-void-500 font-medium uppercase tracking-wider">Использовано</span>
-                  <span className="text-frost-100 font-semibold">
+                  <span className="text-muted font-medium uppercase tracking-wider">Использовано</span>
+                  <span className="text-text font-semibold">
                     {stats?.used_messages ?? 0} / {totalMessages}
                   </span>
                 </div>
-                <div className="w-full bg-void-800 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-void rounded-full h-2">
                   <div
-                    className="h-full rounded-full transition-all duration-700 ease-premium"
-                    style={{
-                      width: `${usagePercent}%`,
-                      background: "linear-gradient(90deg, #4F8CFF, #7EB8FF)",
-                    }}
+                    className="bg-accent h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${usagePercent}%` }}
                   />
                 </div>
               </div>
             </div>
-            <button className="bg-void-800 hover:bg-void-700 text-frost-200 px-5 py-2.5 rounded-full text-sm font-medium border border-void-700 transition-all duration-300 ml-4">
+            <button className="bg-void text-text px-5 py-2.5 rounded-full text-sm font-semibold border border-subtle hover:bg-surface transition-colors duration-200 ml-4">
               Сменить тариф
             </button>
           </div>
         </div>
 
         {/* Bot status */}
-        <div className="glass-card p-6">
-          <h2 className="text-base font-semibold text-frost-100 mb-4">Статус бота</h2>
+        <div className="bg-elevated rounded-3xl p-6">
+          <h2 className="text-base font-semibold text-text mb-4">Статус бота</h2>
           <div className="flex items-center gap-3">
-            <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-rose" : "bg-mint animate-pulse"}`} />
-            <span className="text-sm text-void-400 font-medium">
+            <div className={`w-2.5 h-2.5 rounded-full ${botPaused ? "bg-danger" : "bg-success"}`} />
+            <span className="text-sm text-muted font-medium">
               {botPaused ? "Бот остановлен" : "Бот активен и отвечает клиентам"}
             </span>
           </div>
