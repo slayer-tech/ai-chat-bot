@@ -1,4 +1,4 @@
-"""RAG knowledge base with pgvector."""
+"""RAG knowledge base with Yandex Embeddings (256-dim) + pgvector."""
 
 from typing import Optional
 
@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
+from app.clients.yandex_embeddings import yandex_embeddings_client
 from app.db.models import KnowledgeBaseChunk, KnowledgeBaseDoc
 
 logger = structlog.get_logger()
@@ -18,24 +18,32 @@ async def search_knowledge(
     query: str,
     top_k: int = 3,
 ) -> list[str]:
-    """Search knowledge base chunks by text match.
+    """Search knowledge base chunks by semantic similarity using Yandex Embeddings.
 
     Args:
         db: Database session.
         tenant_id: Tenant filter.
-        query: Query text (tokenized okay).
+        query: Query text.
         top_k: Number of chunks to return.
 
     Returns:
         List of chunk contents.
     """
-    from sqlalchemy import func
+    # Get query embedding via Yandex text-search-query
+    try:
+        embeddings = await yandex_embeddings_client.embed([query], model_type="text-search-query")
+        vector = embeddings[0]
+    except Exception as exc:
+        logger.error("yandex_query_embedding_failed", error=str(exc))
+        return []
+
     result = await db.execute(
         select(KnowledgeBaseChunk)
         .where(
             KnowledgeBaseChunk.tenant_id == tenant_id,
-            func.lower(KnowledgeBaseChunk.content).contains(func.lower(query)),
+            KnowledgeBaseChunk.embedding.is_not(None),
         )
+        .order_by(KnowledgeBaseChunk.embedding.cosine_distance(vector))
         .limit(top_k)
     )
     chunks = result.scalars().all()
@@ -67,18 +75,28 @@ async def add_chunks(
     doc_id: int,
     texts: list[str],
 ) -> None:
-    """Create chunks for a document (text search only, no embeddings)."""
+    """Create chunks and Yandex embeddings for a document."""
     if not texts:
         return
-    for text in texts:
+
+    # Get document embeddings via Yandex text-search-doc
+    try:
+        embeddings = await yandex_embeddings_client.embed(texts, model_type="text-search-doc")
+    except Exception as exc:
+        logger.error("yandex_doc_embedding_failed", error=str(exc), doc_id=doc_id)
+        # Fallback: store chunks without embeddings
+        embeddings = [None] * len(texts)
+
+    for text, emb in zip(texts, embeddings):
         chunk = KnowledgeBaseChunk(
             tenant_id=tenant_id,
             doc_id=doc_id,
             content=text,
-            embedding=None,
+            embedding=emb,
         )
         db.add(chunk)
     await db.commit()
+
     # Update doc status
     doc = await db.scalar(select(KnowledgeBaseDoc).where(KnowledgeBaseDoc.id == doc_id))
     if doc:

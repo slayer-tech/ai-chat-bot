@@ -223,7 +223,7 @@ class KnowledgeBaseChunk(Base):
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[Optional[list[float]]] = mapped_column(
-        Vector(1536), nullable=True
+        Vector(256), nullable=True
     )
     meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
