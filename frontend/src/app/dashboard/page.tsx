@@ -97,6 +97,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [botPaused, setBotPaused] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const localToken = localStorage.getItem("access_token");
+    if (!localToken) {
+      router.push("/login");
+      return;
+    }
+    setAuthorized(true);
+  }, [router]);
 
   useEffect(() => {
     if (!token) return;
@@ -114,9 +124,12 @@ export default function DashboardPage() {
     }
   }, [stats]);
 
-  if (!user && typeof window !== "undefined") {
-    router.push("/login");
-    return null;
+  if (!authorized) {
+    return (
+      <div className="min-h-[100dvh] bg-void flex items-center justify-center">
+        <div className="text-muted">Загрузка...</div>
+      </div>
+    );
   }
 
   const total = (stats?.used_messages ?? 0) + (stats?.left_messages ?? 0);
@@ -203,7 +216,7 @@ export default function DashboardPage() {
                   {stats?.left_messages ?? 0}
                 </p>
                 <p className="text-xs text-muted mt-2">
-                  из {total} использовано
+                  из {stats?.used_messages ?? 0} использовано
                 </p>
               </div>
               <div className="card p-6">
