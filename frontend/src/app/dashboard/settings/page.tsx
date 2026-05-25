@@ -100,6 +100,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
 
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
@@ -131,6 +133,22 @@ export default function SettingsPage() {
       alert("Ошибка сохранения");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const res = await api.uploadKnowledge(file);
+      setUploadResult(`Загружено: ${res.chunks} чанков`);
+    } catch (err: any) {
+      setUploadResult(`Ошибка: ${err.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -216,6 +234,34 @@ export default function SettingsPage() {
                   checked={settings.handoff_enabled ?? true}
                   onChange={(v) => setSettings((s) => ({ ...s, handoff_enabled: v }))}
                 />
+              </div>
+
+              <div className="card p-6 mb-6">
+                <h2 className="text-lg font-medium text-text mb-1">База знаний (RAG)</h2>
+                <p className="text-xs text-muted mb-4">
+                  Загрузи PDF, TXT или DOCX — бот будет отвечать по содержимому файла
+                </p>
+
+                <label className="flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed border-border bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer transition-colors">
+                  <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h6.879a2.25 2.25 0 011.59.659l2.871 2.871a2.25 2.25 0 01.659 1.59V17.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 17.25z" />
+                  </svg>
+                  <span className="text-sm text-text-secondary">
+                    {uploading ? "Загрузка..." : "Выбрать файл (PDF, TXT, DOCX)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.txt,.docx"
+                    onChange={handleUpload}
+                    disabled={uploading}
+                    className="hidden"
+                  />
+                </label>
+                {uploadResult && (
+                  <p className={`text-xs mt-2 ${uploadResult.startsWith("Ошибка") ? "text-accent" : "text-green-400"}`}>
+                    {uploadResult}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-4">

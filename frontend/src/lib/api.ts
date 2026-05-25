@@ -89,4 +89,21 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  uploadKnowledge: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    return fetch("/api/v1/admin/knowledge", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    });
+  },
 };
