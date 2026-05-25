@@ -118,10 +118,11 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 /* ─── Page ─── */
 export default function AdminPage() {
-  const { user, logout, token, role, isLoading } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "active" | "paused">("all");
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
@@ -130,6 +131,8 @@ export default function AdminPage() {
       router.push("/login");
     } else if (localRole !== "superadmin") {
       router.push("/dashboard");
+    } else {
+      setAuthorized(true);
     }
   }, [router]);
 
@@ -145,7 +148,7 @@ export default function AdminPage() {
   const activeBots = tenants.filter((t) => t.status === "active").length;
   const totalRevenue = tenants.reduce((s, t) => s + (t.tariff === "Business" ? 9900 : 2900), 0);
 
-  if (isLoading) {
+  if (!authorized) {
     return (
       <div className="min-h-[100dvh] bg-void flex items-center justify-center">
         <div className="text-muted">Загрузка...</div>
