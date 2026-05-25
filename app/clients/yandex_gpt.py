@@ -25,6 +25,11 @@ class YandexGPTClient:
             "Content-Type": "application/json",
         }
 
+    def _model_uri(self, model: Optional[str] = None) -> str:
+        if model and ("pro" in model.lower() or "yandexgpt" in model.lower() and "lite" not in model.lower()):
+            return f"gpt://{self.folder_id}/yandexgpt/latest"
+        return f"gpt://{self.folder_id}/yandexgpt-lite/latest"
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -69,6 +74,55 @@ class YandexGPTClient:
                 result = data["result"]["alternatives"][0]["message"]["text"]
                 logger.info("yandexgpt_lite_complete", chars=len(result))
                 return result.strip()
+            except httpx.HTTPStatusError as exc:
+                logger.error(
+                    "yandexgpt_error",
+                    status=exc.response.status_code,
+                    body=exc.response.text,
+                )
+                raise ExternalAPIError(f"YandexGPT error: {exc.response.status_code}") from exc
+            except Exception as exc:
+                logger.error("yandexgpt_exception", error=str(exc))
+                raise ExternalAPIError("YandexGPT request failed") from exc
+
+    async def chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        model: Optional[str] = None,
+        temperature: float = 0.3,
+        max_tokens: int = 500,
+    ) -> dict[str, Any]:
+        """OpenAI-compatible chat completion wrapper for YandexGPT.
+
+        Converts 'content' keys to 'text' and returns Groq-compatible shape.
+        """
+        yandex_messages = []
+        for m in messages:
+            role = m.get("role", "user")
+            text = m.get("content", "")
+            yandex_messages.append({"role": role, "text": text})
+
+        payload = {
+            "modelUri": self._model_uri(model),
+            "completionOptions": {
+                "stream": False,
+                "temperature": temperature,
+                "maxTokens": str(max_tokens),
+            },
+            "messages": yandex_messages,
+        }
+        async with httpx.AsyncClient(timeout=20.0, headers=self.headers) as client:
+            try:
+                resp = await client.post(self.base_url, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                result_text = data["result"]["alternatives"][0]["message"]["text"]
+                logger.info("yandexgpt_chat_complete", chars=len(result_text))
+                return {
+                    "choices": [
+                        {"message": {"role": "assistant", "content": result_text.strip()}}
+                    ]
+                }
             except httpx.HTTPStatusError as exc:
                 logger.error(
                     "yandexgpt_error",

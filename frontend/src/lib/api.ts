@@ -83,4 +83,10 @@ export const api = {
   dashboard: () => fetchJson<DashboardStats>("/api/v1/admin/dashboard"),
 
   settings: () => fetchJson<Record<string, any>>("/api/v1/admin/settings"),
+
+  updateSettings: (data: Record<string, any>) =>
+    fetchJson<Record<string, any>>("/api/v1/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };

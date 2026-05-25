@@ -52,22 +52,34 @@ async def handle_inbound_message(
     if msg.type == "audio" and msg.contentUri:
         voice_url = msg.contentUri
 
+    # Transcribe voice if needed
+    if voice_url:
+        from app.modules.voice_processing.service import process_voice_if_needed
+        transcribed = await process_voice_if_needed(voice_url)
+        if transcribed:
+            text = transcribed
+
     # Early exit if dialog is already handoff/flood
     if dialog.status in ("handoff", "flood"):
         return {"status": dialog.status, "dialog_id": dialog_id}
 
+    # Fetch tenant settings for feature toggles
+    from app.modules.tenants.service import get_tenant_settings
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+
     # Push to processing pipeline
     from app.modules.intent_classifier.service import classify_intent
     from app.modules.conversation_memory.service import add_message
-    # from app.modules.anti_spam_flood.service import check_flood  # DISABLED FOR TESTING
-    # from app.modules.smart_escalation.service import check_handoff_needed  # DISABLED FOR TESTING
+    from app.modules.anti_spam_flood.service import check_flood
+    from app.modules.smart_escalation.service import check_handoff_needed
     from app.modules.llm_router.service import generate_response
     from app.modules.billing.service import log_billing
 
-    # Flood check — DISABLED FOR TESTING
-    # is_flood = await check_flood(db, tenant_id, msg.chatId, text)
-    # if is_flood:
-    #     return {"status": "flood_detected", "dialog_id": dialog_id}
+    # Flood / anti-spam check
+    if tenant_settings is None or tenant_settings.anti_spam_enabled:
+        is_flood = await check_flood(db, tenant_id, msg.chatId, text)
+        if is_flood:
+            return {"status": "flood_detected", "dialog_id": dialog_id}
 
     # Intent
     intent, confidence = await classify_intent(text)
@@ -86,10 +98,11 @@ async def handle_inbound_message(
         voice_url=voice_url,
     )
 
-    # Handoff check — DISABLED FOR TESTING
-    # handoff_needed = await check_handoff_needed(db, tenant_id, msg.chatId, intent, text)
-    # if handoff_needed:
-    #     return {"status": "handoff", "dialog_id": dialog_id}
+    # Handoff / escalation check
+    if tenant_settings is None or tenant_settings.handoff_enabled:
+        handoff_needed = await check_handoff_needed(db, tenant_id, msg.chatId, intent, text)
+        if handoff_needed:
+            return {"status": "handoff", "dialog_id": dialog_id}
 
     # Generate response
     response_text = await generate_response(db, tenant_id, msg.chatId, text)

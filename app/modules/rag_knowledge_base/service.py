@@ -18,7 +18,7 @@ async def search_knowledge(
     query: str,
     top_k: int = 3,
 ) -> list[str]:
-    """Search knowledge base chunks by semantic similarity.
+    """Search knowledge base chunks by text match.
 
     Args:
         db: Database session.
@@ -29,18 +29,6 @@ async def search_knowledge(
     Returns:
         List of chunk contents.
     """
-    # NOTE: OpenAI embeddings commented out for testing — using simple text search fallback
-    # embeddings disabled — using text search fallback
-    # if not embeddings:
-    #     return []
-    # vector = embeddings[0]
-    # result = await db.execute(
-    #     select(KnowledgeBaseChunk)
-    #     .where(KnowledgeBaseChunk.tenant_id == tenant_id)
-    #     .order_by(KnowledgeBaseChunk.embedding.cosine_distance(vector))
-    #     .limit(top_k)
-    # )
-    # Fallback: simple substring search for testing
     from sqlalchemy import func
     result = await db.execute(
         select(KnowledgeBaseChunk)
@@ -79,12 +67,9 @@ async def add_chunks(
     doc_id: int,
     texts: list[str],
 ) -> None:
-    """Create chunks and embeddings for a document."""
+    """Create chunks for a document (text search only, no embeddings)."""
     if not texts:
         return
-    # NOTE: OpenAI embeddings commented out for testing — chunks stored without vectors
-    # embeddings disabled — using text search fallback
-    # for text, emb in zip(texts, embeddings):
     for text in texts:
         chunk = KnowledgeBaseChunk(
             tenant_id=tenant_id,

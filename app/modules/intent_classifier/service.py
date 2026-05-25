@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import json
 
-from app.clients.groq_client import groq_client
+from app.clients.yandex_gpt import yandex_gpt_client
 from app.clients.redis_client import get_redis
-# from app.clients.yandex_gpt import yandex_gpt_client  # commented out for testing
 
 logger = structlog.get_logger()
 
@@ -40,12 +39,11 @@ async def classify_intent(text: str) -> Tuple[str, float]:
         "Отвечай только JSON."
     )
     try:
-        resp = await groq_client.chat_completion(
+        resp = await yandex_gpt_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Сообщение: {text}"},
             ],
-            model=groq_client.classify_intent_model(),
             temperature=0.3,
             max_tokens=100,
         )

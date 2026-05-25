@@ -86,6 +86,10 @@ class TenantSettingsSchema(BaseModel):
     crm_config: Optional[dict] = None
     channel_config: Optional[dict] = None
     system_prompt: Optional[str] = None
+    anti_spam_enabled: Optional[bool] = None
+    handoff_enabled: Optional[bool] = None
+    anti_spam_enabled: bool = True
+    handoff_enabled: bool = True
 
 
 class TenantSettingsUpdate(BaseModel):

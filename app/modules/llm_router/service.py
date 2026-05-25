@@ -5,7 +5,7 @@ from typing import Optional
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.groq_client import groq_client
+from app.clients.yandex_gpt import yandex_gpt_client
 
 from app.core.config import settings as app_settings
 from app.db.models import Dialog
@@ -66,10 +66,10 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
-    resp = await groq_client.chat_completion(
+    resp = await yandex_gpt_client.chat_completion(
         messages=messages,
-        model=groq_client.classify_intent_model(),
         temperature=0.7,
+        max_tokens=1000,
     )
     answer = resp["choices"][0]["message"]["content"].strip()
     logger.info("llm_response_generated", tenant_id=tenant_id, dialog_id=dialog_id, answer=answer)

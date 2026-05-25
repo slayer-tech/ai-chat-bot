@@ -9,9 +9,7 @@ import structlog
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from app.clients.crm_adapter import get_crm_adapter  # commented out for testing
-from app.clients.groq_client import groq_client
-# from app.clients.yandex_gpt import yandex_gpt_client  # commented out for testing
+from app.clients.yandex_gpt import yandex_gpt_client
 from app.db.models import Dialog, Message
 from app.modules.conversation_memory.service import get_recent_messages, summarize_dialog
 
@@ -83,12 +81,11 @@ async def _is_human_request(text: str) -> bool:
         "Верни строго JSON: {\"is_human_request\": true/false}"
     )
     try:
-        resp = await groq_client.chat_completion(
+        resp = await yandex_gpt_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text},
             ],
-            model=groq_client.classify_intent_model(),
             temperature=0.3,
             max_tokens=50,
         )
@@ -114,12 +111,11 @@ async def _is_stalled(db: AsyncSession, dialog_id: int) -> bool:
         "Верни строго JSON: {\"is_stalled\": true/false}"
     )
     try:
-        resp = await groq_client.chat_completion(
+        resp = await yandex_gpt_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "\n".join(texts)},
             ],
-            model=groq_client.classify_intent_model(),
             temperature=0.3,
             max_tokens=50,
         )

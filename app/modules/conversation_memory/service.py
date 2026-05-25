@@ -6,8 +6,7 @@ from typing import Optional
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.groq_client import groq_client
-# from app.clients.yandex_gpt import yandex_gpt_client  # commented out for testing
+from app.clients.yandex_gpt import yandex_gpt_client
 from app.db.models import Dialog, Message
 
 
@@ -81,12 +80,11 @@ async def summarize_dialog(db: AsyncSession, dialog_id: int) -> str:
         "Сделай краткое резюме диалога на русском языке в 2-3 предложениях. "
         "Сфокусируйся на потребностях клиента и ключевых фактах."
     )
-    resp = await groq_client.chat_completion(
+    resp = await yandex_gpt_client.chat_completion(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "\n".join(texts)},
         ],
-        model=groq_client.classify_intent_model(),
         temperature=0.3,
         max_tokens=300,
     )

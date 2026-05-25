@@ -83,6 +83,8 @@ class TenantSettings(Base):
     crm_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     channel_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    anti_spam_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    handoff_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
 class TenantAdmin(Base):
