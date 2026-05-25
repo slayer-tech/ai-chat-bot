@@ -60,7 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("user_email", email);
     setUser({ email });
     saveTokens(data);
-    router.push("/dashboard");
+    if (data.role === "superadmin") {
+      router.push("/admin");
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   const register = async (email: string, password: string) => {

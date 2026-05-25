@@ -124,16 +124,14 @@ export default function AdminPage() {
   const [tab, setTab] = useState<"all" | "active" | "paused">("all");
 
   useEffect(() => {
-    if (!isLoading && !token) {
+    const localToken = localStorage.getItem("access_token");
+    const localRole = localStorage.getItem("role");
+    if (!localToken) {
       router.push("/login");
-    }
-  }, [token, isLoading, router]);
-
-  useEffect(() => {
-    if (!isLoading && role && role !== "superadmin") {
+    } else if (localRole !== "superadmin") {
       router.push("/dashboard");
     }
-  }, [role, isLoading, router]);
+  }, [router]);
 
   const filtered = tenants.filter((t) => {
     const matchesSearch =
