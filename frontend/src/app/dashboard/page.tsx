@@ -190,7 +190,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-text">Дашборд</h1>
-            <p className="text-sm text-muted mt-1">{user?.email}</p>
+            <p className="text-sm text-muted mt-1">Управление ботом и статистика</p>
           </div>
           <button
             onClick={() => setBotPaused(!botPaused)}
