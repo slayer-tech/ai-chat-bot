@@ -89,8 +89,7 @@ class TenantSettingsSchema(BaseModel):
     anti_spam_enabled: bool = True
     handoff_enabled: bool = True
     wazzup_api_key: Optional[str] = None
-    yandex_api_key: Optional[str] = None
-    yandex_folder_id: Optional[str] = None
+    target_action: Optional[str] = None
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -110,8 +109,7 @@ class TenantSettingsUpdate(BaseModel):
     anti_spam_enabled: Optional[bool] = None
     handoff_enabled: Optional[bool] = None
     wazzup_api_key: Optional[str] = None
-    yandex_api_key: Optional[str] = None
-    yandex_folder_id: Optional[str] = None
+    target_action: Optional[str] = None
 
 
 class TenantListItem(BaseModel):

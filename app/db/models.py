@@ -86,8 +86,7 @@ class TenantSettings(Base):
     anti_spam_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     handoff_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     wazzup_api_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    yandex_api_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    yandex_folder_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    target_action: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
 
 class TenantAdmin(Base):

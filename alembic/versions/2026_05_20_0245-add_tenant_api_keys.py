@@ -25,15 +25,10 @@ def upgrade() -> None:
     )
     op.add_column(
         "tenant_settings",
-        sa.Column("yandex_api_key", sa.String(length=255), nullable=True),
-    )
-    op.add_column(
-        "tenant_settings",
-        sa.Column("yandex_folder_id", sa.String(length=255), nullable=True),
+        sa.Column("target_action", sa.String(length=50), nullable=True),
     )
 
 
 def downgrade() -> None:
-    op.drop_column("tenant_settings", "yandex_folder_id")
-    op.drop_column("tenant_settings", "yandex_api_key")
+    op.drop_column("tenant_settings", "target_action")
     op.drop_column("tenant_settings", "wazzup_api_key")

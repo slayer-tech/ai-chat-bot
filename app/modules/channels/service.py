@@ -277,6 +277,21 @@ async def process_dialog_response(
     except Exception as exc:
         logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
 
+    # Goal detection: if target action is set, check if reached
+    if tenant_settings and tenant_settings.target_action:
+        from app.modules.conversation_memory.service import build_context
+        from app.modules.goal_detector.service import check_goal_reached
+        conv_for_goal = await build_context(db, dialog_id)
+        goal_reached = await check_goal_reached(tenant_settings.target_action, conv_for_goal)
+        if goal_reached:
+            # Mark dialog as handoff — manager takes over
+            dialog_obj = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
+            if dialog_obj:
+                dialog_obj.status = "handoff"
+                await db.commit()
+            logger.info("goal_reached_handoff", tenant_id=tenant_id, dialog_id=dialog_id, target=tenant_settings.target_action)
+            return {"status": "goal_reached", "dialog_id": dialog_id}
+
     # Billing
     from app.modules.billing.service import log_billing
     await log_billing(db, tenant_id, "incoming", len(recent_messages))

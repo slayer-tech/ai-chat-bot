@@ -314,6 +314,7 @@ class PromptGenerationRequest(BaseModel):
     no_promise: str
     contacts_hours: str
     extra_instructions: str = ""
+    target_action: str = ""
 
 
 @admin_router.post("/generate-prompt")
@@ -327,18 +328,11 @@ async def generate_prompt_endpoint(
     from app.core.prompts import build_prompt_generation_messages
     from app.clients.yandex_gpt import yandex_gpt_client
 
-    # Tenant-specific Yandex credentials
-    tenant_settings = await get_tenant_settings(db, tenant_id)
-    yandex_key = tenant_settings.yandex_api_key if tenant_settings else None
-    yandex_folder = tenant_settings.yandex_folder_id if tenant_settings else None
-
     messages = build_prompt_generation_messages(data.model_dump())
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
         temperature=0.4,
         max_tokens=2000,
-        api_key=yandex_key,
-        folder_id=yandex_folder,
     )
     generated = resp["choices"][0]["message"]["content"].strip()
 

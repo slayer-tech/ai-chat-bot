@@ -24,16 +24,6 @@ class YandexEmbeddingsClient:
             "Content-Type": "application/json",
         }
 
-    def _headers(self, api_key: Optional[str] = None) -> dict[str, str]:
-        key = api_key or self.api_key
-        return {
-            "Authorization": f"Api-Key {key}",
-            "Content-Type": "application/json",
-        }
-
-    def _folder(self, folder_id: Optional[str] = None) -> str:
-        return folder_id or self.folder_id
-
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -44,25 +34,21 @@ class YandexEmbeddingsClient:
         self,
         texts: list[str],
         model_type: str = "text-search-doc",
-        api_key: Optional[str] = None,
-        folder_id: Optional[str] = None,
     ) -> list[list[float]]:
         """Get embeddings for a list of texts.
 
         Args:
             texts: List of texts to embed.
             model_type: "text-search-doc" for documents, "text-search-query" for queries.
-            api_key: Optional tenant-specific API key.
-            folder_id: Optional tenant-specific folder ID.
 
         Returns:
             List of 256-dimensional float vectors.
         """
-        model_uri = f"emb://{self._folder(folder_id)}/{model_type}/latest"
+        model_uri = f"emb://{self.folder_id}/{model_type}/latest"
         results: list[list[float]] = []
 
         # Yandex embeddings API is single-text per request
-        async with httpx.AsyncClient(timeout=20.0, headers=self._headers(api_key)) as client:
+        async with httpx.AsyncClient(timeout=20.0, headers=self.headers) as client:
             for text in texts:
                 payload = {
                     "modelUri": model_uri,

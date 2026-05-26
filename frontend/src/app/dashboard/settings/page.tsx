@@ -168,8 +168,7 @@ export default function SettingsPage() {
         anti_spam_enabled: settings.anti_spam_enabled ?? true,
         handoff_enabled: settings.handoff_enabled ?? true,
         wazzup_api_key: settings.wazzup_api_key || null,
-        yandex_api_key: settings.yandex_api_key || null,
-        yandex_folder_id: settings.yandex_folder_id || null,
+        target_action: settings.target_action || null,
       });
       setSettings(res);
       setSaved(true);
@@ -243,7 +242,7 @@ export default function SettingsPage() {
     }
     setGeneratingPrompt(true);
     try {
-      const res = await api.generatePrompt(promptAnswers);
+      const res = await api.generatePrompt({ ...promptAnswers, target_action: settings.target_action || "" });
       setGeneratedPrompt(res.system_prompt);
       setSettings((s) => ({ ...s, system_prompt: res.system_prompt }));
     } catch (err: any) {
@@ -459,11 +458,11 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* ─── API Keys ─── */}
+              {/* ─── Integration + Target Action ─── */}
               <div className="card p-6">
-                <h2 className="text-lg font-medium text-text mb-1">API ключи</h2>
+                <h2 className="text-lg font-medium text-text mb-1">Интеграции и цель</h2>
                 <p className="text-xs text-muted mb-4">
-                  Ключи для Wazzup и Yandex Cloud. Оставьте пустым чтобы использовать глобальные настройки.
+                  Настрой подключение к Wazzup и выбери целевое действие бота.
                 </p>
 
                 <div className="space-y-4">
@@ -478,30 +477,26 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-text mb-1.5">Yandex API ключ</label>
-                    <input
-                      type="password"
-                      value={settings.yandex_api_key || ""}
-                      onChange={(e) => setSettings((s) => ({ ...s, yandex_api_key: e.target.value }))}
-                      placeholder="API ключ от Yandex Cloud"
-                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text mb-1.5">Yandex Folder ID</label>
-                    <input
-                      type="text"
-                      value={settings.yandex_folder_id || ""}
-                      onChange={(e) => setSettings((s) => ({ ...s, yandex_folder_id: e.target.value }))}
-                      placeholder="ID каталога Yandex Cloud"
-                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
-                    />
+                    <label className="block text-sm font-medium text-text mb-1.5">Целевое действие бота</label>
+                    <select
+                      value={settings.target_action || ""}
+                      onChange={(e) => setSettings((s) => ({ ...s, target_action: e.target.value || null }))}
+                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    >
+                      <option value="">— Не задано —</option>
+                      <option value="appointment">Запись (записать клиента)</option>
+                      <option value="sale">Продажа (закрыть сделку)</option>
+                      <option value="support">Ответы на вопросы (консультация)</option>
+                    </select>
+                    <p className="text-xs text-muted mt-1">
+                      Когда цель достигнута — бот передаёт диалог менеджеру.
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 mt-5">
                   <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
-                    {saving ? "Сохранение..." : "Сохранить API ключи"}
+                    {saving ? "Сохранение..." : "Сохранить"}
                   </button>
                   {saved && <span className="text-sm text-green-400">Сохранено!</span>}
                   <button

@@ -30,16 +30,6 @@ class YandexGPTClient:
             return f"gpt://{self.folder_id}/yandexgpt/latest"
         return f"gpt://{self.folder_id}/yandexgpt-lite/latest"
 
-    def _headers(self, api_key: Optional[str] = None) -> dict[str, str]:
-        key = api_key or self.api_key
-        return {
-            "Authorization": f"Api-Key {key}",
-            "Content-Type": "application/json",
-        }
-
-    def _folder(self, folder_id: Optional[str] = None) -> str:
-        return folder_id or self.folder_id
-
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -52,8 +42,6 @@ class YandexGPTClient:
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        api_key: Optional[str] = None,
-        folder_id: Optional[str] = None,
     ) -> str:
         """Send a completion request to YandexGPT Lite.
 
@@ -62,14 +50,12 @@ class YandexGPTClient:
             user_prompt: User text / task.
             temperature: Sampling temperature.
             max_tokens: Max tokens to generate.
-            api_key: Optional tenant-specific API key.
-            folder_id: Optional tenant-specific folder ID.
 
         Returns:
             Generated text.
         """
         payload = {
-            "modelUri": f"gpt://{self._folder(folder_id)}/yandexgpt-lite/latest",
+            "modelUri": f"gpt://{self.folder_id}/yandexgpt-lite/latest",
             "completionOptions": {
                 "stream": False,
                 "temperature": temperature,
@@ -80,7 +66,7 @@ class YandexGPTClient:
                 {"role": "user", "text": user_prompt},
             ],
         }
-        async with httpx.AsyncClient(timeout=20.0, headers=self._headers(api_key)) as client:
+        async with httpx.AsyncClient(timeout=20.0, headers=self.headers) as client:
             try:
                 resp = await client.post(self.base_url, json=payload)
                 resp.raise_for_status()
@@ -105,8 +91,6 @@ class YandexGPTClient:
         model: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        api_key: Optional[str] = None,
-        folder_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """OpenAI-compatible chat completion wrapper for YandexGPT.
 
@@ -118,14 +102,8 @@ class YandexGPTClient:
             text = m.get("content", "")
             yandex_messages.append({"role": role, "text": text})
 
-        folder = self._folder(folder_id)
-        if model and ("pro" in model.lower() or ("yandexgpt" in model.lower() and "lite" not in model.lower())):
-            model_uri = f"gpt://{folder}/yandexgpt/latest"
-        else:
-            model_uri = f"gpt://{folder}/yandexgpt-lite/latest"
-
         payload = {
-            "modelUri": model_uri,
+            "modelUri": self._model_uri(model),
             "completionOptions": {
                 "stream": False,
                 "temperature": temperature,
@@ -133,7 +111,7 @@ class YandexGPTClient:
             },
             "messages": yandex_messages,
         }
-        async with httpx.AsyncClient(timeout=20.0, headers=self._headers(api_key)) as client:
+        async with httpx.AsyncClient(timeout=20.0, headers=self.headers) as client:
             try:
                 resp = await client.post(self.base_url, json=payload)
                 resp.raise_for_status()
