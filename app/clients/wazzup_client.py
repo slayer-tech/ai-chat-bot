@@ -111,7 +111,11 @@ class WazzupClient:
                 resp = await client.patch(f"{self.base_url}/webhooks", json=payload)
                 logger.info("wazzup_set_webhook_response", status=resp.status_code, body=resp.text)
                 resp.raise_for_status()
-                return resp.json()
+                # Wazzup returns plain "OK" on success, not JSON
+                try:
+                    return resp.json()
+                except Exception:
+                    return {"status": "ok", "body": resp.text}
             except httpx.HTTPStatusError as exc:
                 logger.error(
                     "wazzup_set_webhook_error",
