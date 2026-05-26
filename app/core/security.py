@@ -90,7 +90,10 @@ def require_role(*roles: str):
     return role_checker
 
 
-async def get_current_tenant_id(request: Request) -> int:
+async def get_current_tenant_id(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(http_bearer),
+) -> int:
     """Extract tenant id from X-Tenant-ID header or JWT payload."""
     header = request.headers.get("X-Tenant-ID")
     if header:
@@ -98,6 +101,16 @@ async def get_current_tenant_id(request: Request) -> int:
             return int(header)
         except ValueError as exc:
             raise AuthenticationError("Invalid X-Tenant-ID") from exc
+    # Try token directly if request.state.user not set yet
+    if credentials:
+        try:
+            payload = decode_token(credentials.credentials)
+            tenant_id = payload.get("tenant_id")
+            if tenant_id is not None:
+                return int(tenant_id)
+        except Exception:
+            pass
+    # Fallback to request state (set by other dependencies)
     user = getattr(request.state, "user", None) or {}
     tenant_id = user.get("tenant_id")
     if tenant_id is None:

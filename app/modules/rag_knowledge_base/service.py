@@ -29,9 +29,17 @@ async def search_knowledge(
     Returns:
         List of chunk contents.
     """
+    # Fetch tenant-specific Yandex credentials
+    from app.modules.tenants.service import get_tenant_settings
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    yandex_key = tenant_settings.yandex_api_key if tenant_settings else None
+    yandex_folder = tenant_settings.yandex_folder_id if tenant_settings else None
+
     # Get query embedding via Yandex text-search-query
     try:
-        embeddings = await yandex_embeddings_client.embed([query], model_type="text-search-query")
+        embeddings = await yandex_embeddings_client.embed(
+            [query], model_type="text-search-query", api_key=yandex_key, folder_id=yandex_folder
+        )
         vector = embeddings[0]
     except Exception as exc:
         logger.error("yandex_query_embedding_failed", error=str(exc))
@@ -79,9 +87,17 @@ async def add_chunks(
     if not texts:
         return
 
+    # Fetch tenant-specific Yandex credentials
+    from app.modules.tenants.service import get_tenant_settings
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    yandex_key = tenant_settings.yandex_api_key if tenant_settings else None
+    yandex_folder = tenant_settings.yandex_folder_id if tenant_settings else None
+
     # Get document embeddings via Yandex text-search-doc
     try:
-        embeddings = await yandex_embeddings_client.embed(texts, model_type="text-search-doc")
+        embeddings = await yandex_embeddings_client.embed(
+            texts, model_type="text-search-doc", api_key=yandex_key, folder_id=yandex_folder
+        )
     except Exception as exc:
         logger.error("yandex_doc_embedding_failed", error=str(exc), doc_id=doc_id)
         # Fallback: store chunks without embeddings

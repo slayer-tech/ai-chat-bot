@@ -161,8 +161,9 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                 await db.commit()
                 continue
 
+        wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
         try:
-            await wazzup_client.send_message(dialog.channel, dialog.external_user_id, text_plain)
+            await wazzup_client.send_message(dialog.channel, dialog.external_user_id, text_plain, api_key=wazzup_key)
             trig.status = "sent"
             trig.sent_at = now
             await db.commit()

@@ -264,13 +264,16 @@ async def process_dialog_response(
         if handoff_needed:
             return {"status": "handoff", "dialog_id": dialog_id}
 
+    # Fetch tenant-specific Wazzup API key (early, we already have tenant_settings from anti-spam)
+    wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+
     # Generate response
     from app.modules.llm_router.service import generate_response
     response_text = await generate_response(db, tenant_id, chat_id, combined_text)
 
     # Send outbound via Wazzup
     try:
-        await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type)
+        await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type, wazzup_key)
     except Exception as exc:
         logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
 
@@ -307,18 +310,20 @@ async def send_outbound(
     chat_id: str,
     text: str,
     chat_type: str = "whatsapp",
+    wazzup_api_key: Optional[str] = None,
 ) -> dict[str, Any]:
     """Send outbound message via Wazzup."""
     logger = structlog.get_logger()
 
-    if not wazzup_client.api_key:
-        logger.info(
-            "wazzup_outbound_skipped",
+    api_key = wazzup_api_key
+    if not api_key:
+        logger.error(
+            "wazzup_outbound_no_api_key",
             tenant_id=tenant_id,
             channel_id=channel_id,
             chat_id=chat_id,
             text=text,
         )
-        return {"status": "skipped", "text": text}
+        raise ValueError(f"Wazzup API key not configured for tenant {tenant_id}")
 
-    return await wazzup_client.send_message(channel_id, chat_id, text, chat_type)
+    return await wazzup_client.send_message(channel_id, chat_id, text, chat_type, api_key)

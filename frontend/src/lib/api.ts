@@ -122,4 +122,9 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  registerWazzupWebhook: () =>
+    fetchJson<{ status: string }>("/api/v1/admin/register-wazzup-webhook", {
+      method: "POST",
+    }),
 };

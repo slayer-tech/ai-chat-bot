@@ -18,11 +18,7 @@ class WazzupClient:
 
     def __init__(self) -> None:
         self.base_url = settings.WAZZUP_BASE_URL
-        self.api_key = settings.WAZZUP_API_KEY
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        self.api_key = None  # Per-tenant only — no global fallback
 
     @retry(
         stop=stop_after_attempt(3),
@@ -43,6 +39,7 @@ class WazzupClient:
         chat_id: str,
         text: str,
         chat_type: str = "whatsapp",
+        api_key: Optional[str] = None,
     ) -> dict[str, Any]:
         """Send an outbound message via Wazzup.
 
@@ -50,6 +47,7 @@ class WazzupClient:
             channel_id: Wazzup channel UUID (from webhook).
             chat_id: External chat/user ID.
             text: Message text.
+            api_key: Optional tenant-specific API key. Falls back to global settings.
 
         Returns:
             API response JSON.
@@ -61,8 +59,13 @@ class WazzupClient:
             "text": text,
             "chatType": chat_type,
         }
-        logger.info("wazzup_send_payload", payload=payload)
-        async with httpx.AsyncClient(timeout=15.0, headers=self.headers) as client:
+        key = api_key or self.api_key
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        }
+        logger.info("wazzup_send_payload", payload=payload, has_custom_key=bool(api_key))
+        async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
             try:
                 resp = await client.post(f"{self.base_url}/message", json=payload)
                 logger.info("wazzup_send_response", status=resp.status_code, body=resp.text)
@@ -78,6 +81,42 @@ class WazzupClient:
             except Exception as exc:
                 logger.error("wazzup_send_exception", error=str(exc))
                 raise ExternalAPIError("Wazzup request failed") from exc
+
+    async def set_webhook(self, api_key: str, webhook_url: str) -> dict[str, Any]:
+        """Register or update webhook URL in Wazzup.
+
+        Args:
+            api_key: Tenant-specific Wazzup API key.
+            webhook_url: Public URL where Wazzup will send events.
+
+        Returns:
+            API response JSON.
+        """
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "url": webhook_url,
+            "events": ["message"],
+        }
+        logger.info("wazzup_set_webhook", url=webhook_url)
+        async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
+            try:
+                resp = await client.post(f"{self.base_url}/webhooks", json=payload)
+                logger.info("wazzup_set_webhook_response", status=resp.status_code, body=resp.text)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as exc:
+                logger.error(
+                    "wazzup_set_webhook_error",
+                    status=exc.response.status_code,
+                    body=exc.response.text,
+                )
+                raise ExternalAPIError(f"Wazzup webhook registration error: {exc.response.status_code}") from exc
+            except Exception as exc:
+                logger.error("wazzup_set_webhook_exception", error=str(exc))
+                raise ExternalAPIError("Wazzup webhook registration failed") from exc
 
     def verify_webhook_signature(self, body: bytes, signature: Optional[str]) -> bool:
         """Verify Wazzup webhook signature.

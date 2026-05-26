@@ -127,6 +127,10 @@ export default function SettingsPage() {
   const [followupsLoading, setFollowupsLoading] = useState(true);
   const [followupsSaved, setFollowupsSaved] = useState(false);
 
+  // Webhook registration state
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<string | null>(null);
+
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
     if (!localToken) {
@@ -163,6 +167,9 @@ export default function SettingsPage() {
       const res = await api.updateSettings({
         anti_spam_enabled: settings.anti_spam_enabled ?? true,
         handoff_enabled: settings.handoff_enabled ?? true,
+        wazzup_api_key: settings.wazzup_api_key || null,
+        yandex_api_key: settings.yandex_api_key || null,
+        yandex_folder_id: settings.yandex_folder_id || null,
       });
       setSettings(res);
       setSaved(true);
@@ -171,6 +178,23 @@ export default function SettingsPage() {
       alert("Ошибка сохранения");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRegisterWebhook = async () => {
+    if (!settings.wazzup_api_key) {
+      setWebhookResult("Сначала сохраните Wazzup API ключ");
+      return;
+    }
+    setRegisteringWebhook(true);
+    setWebhookResult(null);
+    try {
+      const res = await api.registerWazzupWebhook();
+      setWebhookResult("Вебхук зарегистрирован: " + (res.status || "ok"));
+    } catch (err: any) {
+      setWebhookResult("Ошибка: " + (err.message || "Не удалось зарегистрировать"));
+    } finally {
+      setRegisteringWebhook(false);
     }
   };
 
@@ -433,6 +457,66 @@ export default function SettingsPage() {
                   </button>
                   {followupsSaved && <span className="text-sm text-green-400">Сохранено!</span>}
                 </div>
+              </div>
+
+              {/* ─── API Keys ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">API ключи</h2>
+                <p className="text-xs text-muted mb-4">
+                  Ключи для Wazzup и Yandex Cloud. Оставьте пустым чтобы использовать глобальные настройки.
+                </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1.5">Wazzup API ключ</label>
+                    <input
+                      type="password"
+                      value={settings.wazzup_api_key || ""}
+                      onChange={(e) => setSettings((s) => ({ ...s, wazzup_api_key: e.target.value }))}
+                      placeholder="Bearer token от Wazzup"
+                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1.5">Yandex API ключ</label>
+                    <input
+                      type="password"
+                      value={settings.yandex_api_key || ""}
+                      onChange={(e) => setSettings((s) => ({ ...s, yandex_api_key: e.target.value }))}
+                      placeholder="API ключ от Yandex Cloud"
+                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1.5">Yandex Folder ID</label>
+                    <input
+                      type="text"
+                      value={settings.yandex_folder_id || ""}
+                      onChange={(e) => setSettings((s) => ({ ...s, yandex_folder_id: e.target.value }))}
+                      placeholder="ID каталога Yandex Cloud"
+                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 mt-5">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить API ключи"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                  <button
+                    onClick={handleRegisterWebhook}
+                    disabled={registeringWebhook || !settings.wazzup_api_key}
+                    className="px-6 py-2.5 rounded-xl text-sm font-medium border border-border text-text-secondary hover:bg-white/[0.03] hover:text-text transition-colors disabled:opacity-50"
+                  >
+                    {registeringWebhook ? "Регистрация..." : "Переподключить вебхук"}
+                  </button>
+                </div>
+                {webhookResult && (
+                  <p className={`text-xs mt-2 ${webhookResult.startsWith("Ошибка") || webhookResult.startsWith("Сначала") ? "text-accent" : "text-green-400"}`}>
+                    {webhookResult}
+                  </p>
+                )}
               </div>
 
               {/* ─── Security Toggles ─── */}

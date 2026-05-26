@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     # Groq (temporary, will be replaced by YandexGPT 5.1 Pro)
     GROQ_API_KEY: str = ""
 
-    # Wazzup
-    WAZZUP_API_KEY: str = ""
+    # Wazzup (base URL + public webhook URL — API keys are per-tenant in dashboard settings)
     WAZZUP_BASE_URL: str = "https://api.wazzup24.com/v3"
+    WAZZUP_WEBHOOK_URL: str = ""  # e.g. https://kayleereed.org/webhook/wazzup
 
     # Yandex SpeechKit
     YANDEX_SPEECHKIT_API_KEY: str = ""

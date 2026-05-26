@@ -86,10 +86,11 @@ class TenantSettingsSchema(BaseModel):
     crm_config: Optional[dict] = None
     channel_config: Optional[dict] = None
     system_prompt: Optional[str] = None
-    anti_spam_enabled: Optional[bool] = None
-    handoff_enabled: Optional[bool] = None
     anti_spam_enabled: bool = True
     handoff_enabled: bool = True
+    wazzup_api_key: Optional[str] = None
+    yandex_api_key: Optional[str] = None
+    yandex_folder_id: Optional[str] = None
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -106,6 +107,11 @@ class TenantSettingsUpdate(BaseModel):
     crm_config: Optional[dict] = None
     channel_config: Optional[dict] = None
     system_prompt: Optional[str] = None
+    anti_spam_enabled: Optional[bool] = None
+    handoff_enabled: Optional[bool] = None
+    wazzup_api_key: Optional[str] = None
+    yandex_api_key: Optional[str] = None
+    yandex_folder_id: Optional[str] = None
 
 
 class TenantListItem(BaseModel):

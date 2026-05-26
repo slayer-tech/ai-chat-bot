@@ -275,7 +275,41 @@ async def put_admin_settings(
     tenant_id: int = Depends(get_current_tenant_id),
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> TenantSettingsSchema:
-    return await update_tenant_settings(db, tenant_id, data)
+    tenant_settings = await update_tenant_settings(db, tenant_id, data)
+    # Auto-register webhook if Wazzup API key was just set/changed
+    if data.wazzup_api_key and settings.WAZZUP_WEBHOOK_URL:
+        try:
+            from app.clients.wazzup_client import wazzup_client
+            await wazzup_client.set_webhook(data.wazzup_api_key, settings.WAZZUP_WEBHOOK_URL)
+        except Exception as exc:
+            logger = structlog.get_logger()
+            logger.error("wazzup_webhook_auto_register_failed", tenant_id=tenant_id, error=str(exc))
+    return tenant_settings
+
+
+@admin_router.post("/register-wazzup-webhook")
+async def register_wazzup_webhook_manual(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, str]:
+    """Manually trigger Wazzup webhook registration for this tenant."""
+    from app.clients.wazzup_client import wazzup_client
+    from app.modules.tenants.service import get_tenant_settings
+
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    if not tenant_settings or not tenant_settings.wazzup_api_key:
+        raise HTTPException(status_code=400, detail="Wazzup API key not configured")
+    if not settings.WAZZUP_WEBHOOK_URL:
+        raise HTTPException(status_code=400, detail="WAZZUP_WEBHOOK_URL not configured on server")
+
+    try:
+        result = await wazzup_client.set_webhook(
+            tenant_settings.wazzup_api_key, settings.WAZZUP_WEBHOOK_URL
+        )
+        return {"status": "ok", "wazzup_response": str(result)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Wazzup API error: {exc}") from exc
 
 
 class PromptGenerationRequest(BaseModel):
@@ -301,11 +335,18 @@ async def generate_prompt_endpoint(
     from app.core.prompts import build_prompt_generation_messages
     from app.clients.yandex_gpt import yandex_gpt_client
 
+    # Tenant-specific Yandex credentials
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    yandex_key = tenant_settings.yandex_api_key if tenant_settings else None
+    yandex_folder = tenant_settings.yandex_folder_id if tenant_settings else None
+
     messages = build_prompt_generation_messages(data.model_dump())
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
         temperature=0.4,
         max_tokens=2000,
+        api_key=yandex_key,
+        folder_id=yandex_folder,
     )
     generated = resp["choices"][0]["message"]["content"].strip()
 

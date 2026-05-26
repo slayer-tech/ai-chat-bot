@@ -37,7 +37,23 @@ async def wazzup_webhook(
     if not isinstance(messages, list):
         return {"status": "ok", "processed": 0}
 
-    tenant_id = 1  # Placeholder: lookup by Wazzup account mapping
+    # Lookup tenant by first message's channelId via channel_config mapping
+    tenant_id = 1
+    if messages:
+        first_channel_id = messages[0].get("channelId", "")
+        if first_channel_id:
+            from app.db.models import TenantSettings
+            from sqlalchemy import func
+            stmt = select(TenantSettings).where(
+                func.jsonb_exists(TenantSettings.channel_config, first_channel_id)
+            )
+            ts = await db.scalar(stmt)
+            if ts:
+                tenant_id = ts.tenant_id
+                logger.info("wazzup_tenant_lookup", channel_id=first_channel_id, tenant_id=tenant_id)
+            else:
+                logger.warning("wazzup_tenant_not_found", channel_id=first_channel_id, fallback_tenant_id=tenant_id)
+
     results = []
 
     for msg_data in messages:

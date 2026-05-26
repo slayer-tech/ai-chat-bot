@@ -66,10 +66,16 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
+    # Tenant-specific Yandex credentials
+    yandex_key = settings_obj.yandex_api_key if settings_obj else None
+    yandex_folder = settings_obj.yandex_folder_id if settings_obj else None
+
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
         temperature=0.7,
         max_tokens=1000,
+        api_key=yandex_key,
+        folder_id=yandex_folder,
     )
     answer = resp["choices"][0]["message"]["content"].strip()
     logger.info("llm_response_generated", tenant_id=tenant_id, dialog_id=dialog_id, answer=answer)
