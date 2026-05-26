@@ -100,8 +100,26 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Upload state
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const [docs, setDocs] = useState<Array<{ id: number; filename: string; status: string; created_at: string }>>([]);
+
+  // Prompt generation state
+  const [promptAnswers, setPromptAnswers] = useState<Record<string, string>>({
+    company_name: "",
+    company_description: "",
+    services: "",
+    target_audience: "",
+    tone: "",
+    faq: "",
+    no_promise: "",
+    contacts_hours: "",
+    extra_instructions: "",
+  });
+  const [generatingPrompt, setGeneratingPrompt] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
@@ -114,10 +132,16 @@ export default function SettingsPage() {
       .settings()
       .then((res) => {
         setSettings(res);
+        if (res.system_prompt) setGeneratedPrompt(res.system_prompt);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    loadDocs();
   }, [router]);
+
+  const loadDocs = () => {
+    api.knowledgeDocs().then(setDocs).catch(() => {});
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -139,11 +163,20 @@ export default function SettingsPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (docs.length >= 10) {
+      setUploadResult("Ошибка: максимум 10 файлов");
+      return;
+    }
     setUploading(true);
     setUploadResult(null);
     try {
       const res = await api.uploadKnowledge(file);
-      setUploadResult(`Загружено: ${res.chunks} чанков`);
+      if (res.error) {
+        setUploadResult(`Ошибка: ${res.error}`);
+      } else {
+        setUploadResult(`Загружено: ${res.chunks} чанков`);
+        loadDocs();
+      }
     } catch (err: any) {
       setUploadResult(`Ошибка: ${err.message}`);
     } finally {
@@ -151,6 +184,35 @@ export default function SettingsPage() {
       e.target.value = "";
     }
   };
+
+  const handleGeneratePrompt = async () => {
+    if (!promptAnswers.company_name.trim()) {
+      alert("Укажи название компании");
+      return;
+    }
+    setGeneratingPrompt(true);
+    try {
+      const res = await api.generatePrompt(promptAnswers);
+      setGeneratedPrompt(res.system_prompt);
+      setSettings((s) => ({ ...s, system_prompt: res.system_prompt }));
+    } catch (err: any) {
+      alert(`Ошибка генерации: ${err.message}`);
+    } finally {
+      setGeneratingPrompt(false);
+    }
+  };
+
+  const surveyQuestions = [
+    { key: "company_name", label: "Название компании", placeholder: "ООО Ромашка" },
+    { key: "company_description", label: "Чем занимаетесь? (2-3 предложения)", placeholder: "Продаем цветы и доставляем по Москве" },
+    { key: "services", label: "Какие услуги/товары предлагаете?", placeholder: "Букеты, композиции, подписка на цветы" },
+    { key: "target_audience", label: "Кто ваш клиент?", placeholder: "Мужчины 25-45, дарят на 8 марта и ДР" },
+    { key: "tone", label: "Тон общения", placeholder: "Дружелюбный, профессиональный, строгий" },
+    { key: "faq", label: "Самые частые вопросы клиентов", placeholder: "Сколько стоит доставка? Есть срочный заказ?" },
+    { key: "no_promise", label: "Что бот НЕ должен обещать?", placeholder: "Скидки без согласования, доставку за 1 час" },
+    { key: "contacts_hours", label: "Контакты и режим работы", placeholder: "+7 999 123-45-67, пн-пт 9:00-18:00" },
+    { key: "extra_instructions", label: "Дополнительные инструкции (необязательно)", placeholder: "Всегда предлагай упаковку, не забудь про открытку" },
+  ];
 
   if (!authorized) {
     return (
@@ -210,15 +272,60 @@ export default function SettingsPage() {
 
       {/* Main */}
       <main className="flex-1 lg:ml-60 p-6 lg:p-10 pt-20 lg:pt-10">
-        <div className="max-w-2xl">
-          <h1 className="text-2xl font-semibold tracking-tight text-text mb-2">Настройки бота</h1>
-          <p className="text-sm text-muted mb-8">Управление поведением и защитой</p>
+        <div className="max-w-3xl space-y-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-text">Настройки бота</h1>
 
           {loading ? (
             <div className="text-muted">Загрузка...</div>
           ) : (
             <>
-              <div className="card p-6 mb-6">
+              {/* ─── Bot Configuration Survey ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Настройка промпта бота</h2>
+                <p className="text-xs text-muted mb-5">
+                  Ответь на вопросы — AI сгенерирует идеальный system prompt для твоего бота
+                </p>
+
+                <div className="space-y-4">
+                  {surveyQuestions.map((q) => (
+                    <div key={q.key}>
+                      <label className="block text-sm font-medium text-text mb-1.5">{q.label}</label>
+                      <input
+                        type="text"
+                        value={promptAnswers[q.key]}
+                        onChange={(e) =>
+                          setPromptAnswers((a) => ({ ...a, [q.key]: e.target.value }))
+                        }
+                        placeholder={q.placeholder}
+                        className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleGeneratePrompt}
+                  disabled={generatingPrompt}
+                  className="mt-5 btn-primary px-6"
+                >
+                  {generatingPrompt ? "Генерация..." : "Сгенерировать промпт"}
+                </button>
+
+                {generatedPrompt && (
+                  <div className="mt-5">
+                    <p className="text-xs uppercase tracking-wider text-muted mb-2">Сгенерированный промпт</p>
+                    <textarea
+                      readOnly
+                      value={generatedPrompt}
+                      rows={8}
+                      className="w-full bg-void border border-border rounded-xl px-4 py-3 text-xs text-text font-mono resize-none focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ─── Security Toggles ─── */}
+              <div className="card p-6">
                 <h2 className="text-lg font-medium text-text mb-1">Безопасность и эскалация</h2>
                 <p className="text-xs text-muted mb-4">Включите нужные модули обработки диалогов</p>
 
@@ -234,26 +341,38 @@ export default function SettingsPage() {
                   checked={settings.handoff_enabled ?? true}
                   onChange={(v) => setSettings((s) => ({ ...s, handoff_enabled: v }))}
                 />
+
+                <div className="flex items-center gap-4 mt-5">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
               </div>
 
-              <div className="card p-6 mb-6">
+              {/* ─── Knowledge Base (RAG) ─── */}
+              <div className="card p-6">
                 <h2 className="text-lg font-medium text-text mb-1">База знаний (RAG)</h2>
                 <p className="text-xs text-muted mb-4">
-                  Загрузи PDF, TXT или DOCX — бот будет отвечать по содержимому файла
+                  Загрузи PDF, TXT или DOCX — бот будет отвечать по содержимому. Макс {docs.length}/10 файлов, до 10МБ каждый.
                 </p>
 
-                <label className="flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed border-border bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer transition-colors">
+                <label
+                  className={`flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed border-border bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer transition-colors ${
+                    docs.length >= 10 ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
                   <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h6.879a2.25 2.25 0 011.59.659l2.871 2.871a2.25 2.25 0 01.659 1.59V17.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 17.25z" />
                   </svg>
                   <span className="text-sm text-text-secondary">
-                    {uploading ? "Загрузка..." : "Выбрать файл (PDF, TXT, DOCX)"}
+                    {uploading ? "Загрузка..." : docs.length >= 10 ? "Лимит файлов достигнут" : "Выбрать файл (PDF, TXT, DOCX)"}
                   </span>
                   <input
                     type="file"
                     accept=".pdf,.txt,.docx"
                     onChange={handleUpload}
-                    disabled={uploading}
+                    disabled={uploading || docs.length >= 10}
                     className="hidden"
                   />
                 </label>
@@ -262,17 +381,17 @@ export default function SettingsPage() {
                     {uploadResult}
                   </p>
                 )}
-              </div>
 
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="btn-primary px-6"
-                >
-                  {saving ? "Сохранение..." : "Сохранить"}
-                </button>
-                {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                {docs.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {docs.map((d) => (
+                      <div key={d.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-white/[0.03]">
+                        <span className="text-text truncate">{d.filename}</span>
+                        <span className="text-xs text-muted ml-3 shrink-0">{d.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}

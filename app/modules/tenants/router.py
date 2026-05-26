@@ -276,3 +276,44 @@ async def put_admin_settings(
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> TenantSettingsSchema:
     return await update_tenant_settings(db, tenant_id, data)
+
+
+class PromptGenerationRequest(BaseModel):
+    company_name: str
+    company_description: str
+    services: str
+    target_audience: str
+    tone: str
+    faq: str
+    no_promise: str
+    contacts_hours: str
+    extra_instructions: str = ""
+
+
+@admin_router.post("/generate-prompt")
+async def generate_prompt_endpoint(
+    data: PromptGenerationRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, str]:
+    """Generate a custom system prompt via YandexGPT and save it."""
+    from app.core.prompts import build_prompt_generation_messages
+    from app.clients.yandex_gpt import yandex_gpt_client
+
+    messages = build_prompt_generation_messages(data.model_dump())
+    resp = await yandex_gpt_client.chat_completion(
+        messages=messages,
+        temperature=0.4,
+        max_tokens=2000,
+    )
+    generated = resp["choices"][0]["message"]["content"].strip()
+
+    # Prepend guard rails
+    from app.core.prompts import BASE_GUARD_PROMPT
+    full_prompt = f"{BASE_GUARD_PROMPT}\n\n[Контекст компании]\n{generated}"
+
+    # Save to tenant settings
+    await update_tenant_settings(db, tenant_id, TenantSettingsUpdate(system_prompt=full_prompt))
+
+    return {"system_prompt": full_prompt}

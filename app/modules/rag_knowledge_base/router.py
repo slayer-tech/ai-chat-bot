@@ -4,13 +4,18 @@ from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_current_tenant_id, require_role
+from app.db.models import KnowledgeBaseDoc
 from app.db.session import get_db
 from app.modules.rag_knowledge_base.service import add_chunks, add_document
 
 router = APIRouter(prefix="/api/v1/admin", tags=["knowledge_base"])
+
+MAX_KB_DOCS = 10
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _extract_text(filename: str, content: bytes) -> str:
@@ -48,8 +53,15 @@ async def upload_document(
     if f".{ext}" not in allowed_ext:
         return {"error": "Invalid file type"}
     content = await file.read()
-    if len(content) > 10 * 1024 * 1024:
+    if len(content) > MAX_FILE_SIZE:
         return {"error": "File too large (max 10MB)"}
+
+    # Check document count limit
+    doc_count = await db.scalar(
+        select(func.count(KnowledgeBaseDoc.id)).where(KnowledgeBaseDoc.tenant_id == tenant_id)
+    ) or 0
+    if doc_count >= MAX_KB_DOCS:
+        return {"error": f"Document limit reached (max {MAX_KB_DOCS} files). Delete old files first."}
 
     text = _extract_text(file.filename, content)
     if not text.strip():
@@ -71,3 +83,20 @@ async def upload_document(
 
     await add_chunks(db, tenant_id, doc.id, chunks)
     return {"doc_id": doc.id, "chunks": len(chunks)}
+
+
+@router.get("/knowledge")
+async def list_documents(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> list[dict[str, Any]]:
+    """List uploaded knowledge base documents."""
+    result = await db.execute(
+        select(KnowledgeBaseDoc).where(KnowledgeBaseDoc.tenant_id == tenant_id)
+    )
+    docs = result.scalars().all()
+    return [
+        {"id": d.id, "filename": d.filename, "status": d.status, "created_at": d.created_at.isoformat()}
+        for d in docs
+    ]
