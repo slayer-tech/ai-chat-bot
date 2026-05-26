@@ -1,5 +1,6 @@
 """Delayed message processing with debounce."""
 
+import asyncio
 import uuid
 
 from celery import shared_task
@@ -9,8 +10,7 @@ from app.db.session import AsyncSessionLocal
 from app.modules.channels.service import process_dialog_response
 
 
-@shared_task
-async def process_delayed_message(
+async def _process_delayed_message_async(
     tenant_id: int,
     dialog_id: int,
     chat_id: str,
@@ -18,10 +18,7 @@ async def process_delayed_message(
     channel_id: str,
     task_id: str,
 ) -> dict:
-    """Process dialog response after debounce delay.
-
-    Only runs if no newer message arrived for this dialog within the debounce window.
-    """
+    """Async implementation of delayed message processing."""
     redis = await get_redis()
     redis_key = f"pending_task:{tenant_id}:{chat_id}"
     current_task = await redis.get(redis_key)
@@ -43,6 +40,24 @@ async def process_delayed_message(
     # Clean up redis key after processing
     await redis.delete(redis_key)
     return result
+
+
+@shared_task
+def process_delayed_message(
+    tenant_id: int,
+    dialog_id: int,
+    chat_id: str,
+    chat_type: str,
+    channel_id: str,
+    task_id: str,
+) -> dict:
+    """Process dialog response after debounce delay.
+
+    Only runs if no newer message arrived for this dialog within the debounce window.
+    """
+    return asyncio.run(_process_delayed_message_async(
+        tenant_id, dialog_id, chat_id, chat_type, channel_id, task_id
+    ))
 
 
 async def schedule_delayed_processing(
