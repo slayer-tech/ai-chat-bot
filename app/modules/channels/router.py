@@ -33,6 +33,11 @@ async def wazzup_webhook(
 
     logger.info("wazzup_webhook_raw", body=data)
 
+    # Respond to Wazzup test ping (sent during webhook registration)
+    if data.get("test") is True:
+        logger.info("wazzup_webhook_test_ping")
+        return {"status": "ok"}
+
     messages = data.get("messages", [])
     if not isinstance(messages, list):
         return {"status": "ok", "processed": 0}

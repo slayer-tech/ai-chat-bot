@@ -97,13 +97,18 @@ class WazzupClient:
             "Content-Type": "application/json",
         }
         payload = {
-            "url": webhook_url,
-            "events": ["message"],
+            "webhooksUri": webhook_url,
+            "subscriptions": {
+                "messagesAndStatuses": True,
+                "contactsAndDealsCreation": False,
+                "channelsUpdates": False,
+                "templateStatus": False,
+            },
         }
         logger.info("wazzup_set_webhook", url=webhook_url)
         async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
             try:
-                resp = await client.post(f"{self.base_url}/webhooks", json=payload)
+                resp = await client.patch(f"{self.base_url}/webhooks", json=payload)
                 logger.info("wazzup_set_webhook_response", status=resp.status_code, body=resp.text)
                 resp.raise_for_status()
                 return resp.json()
