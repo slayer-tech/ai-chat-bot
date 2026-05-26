@@ -90,6 +90,7 @@ class TenantSettingsSchema(BaseModel):
     handoff_enabled: bool = True
     wazzup_api_key: Optional[str] = None
     target_action: Optional[str] = None
+    faq_items: Optional[list] = None
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -110,6 +111,7 @@ class TenantSettingsUpdate(BaseModel):
     handoff_enabled: Optional[bool] = None
     wazzup_api_key: Optional[str] = None
     target_action: Optional[str] = None
+    faq_items: Optional[list] = None
 
 
 class TenantListItem(BaseModel):

@@ -27,8 +27,13 @@ def upgrade() -> None:
         "tenant_settings",
         sa.Column("target_action", sa.String(length=50), nullable=True),
     )
+    op.add_column(
+        "tenant_settings",
+        sa.Column("faq_items", sa.JSON(), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("tenant_settings", "faq_items")
     op.drop_column("tenant_settings", "target_action")
     op.drop_column("tenant_settings", "wazzup_api_key")

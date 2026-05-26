@@ -53,6 +53,17 @@ async def generate_response(
             "Answer concisely, professionally, and in Russian."
         )
 
+    # FAQ context (if no RAG or as supplement)
+    faq_text = ""
+    if settings_obj and settings_obj.faq_items:
+        faq_lines = []
+        for item in settings_obj.faq_items:
+            q = item.get("question", "")
+            a = item.get("answer", "")
+            if q and a:
+                faq_lines.append(f"В: {q}\nО: {a}")
+        faq_text = "\n\n".join(faq_lines)
+
     # RAG context
     rag_chunks = await search_knowledge(db, tenant_id, current_message)
     rag_text = "\n".join(rag_chunks) if rag_chunks else ""
@@ -61,6 +72,8 @@ async def generate_response(
     conv_context = await build_context(db, dialog_id)
 
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    if faq_text:
+        messages.append({"role": "system", "content": f"Частые вопросы и ответы:\n{faq_text}"})
     if rag_text:
         messages.append({"role": "system", "content": f"Relevant info:\n{rag_text}"})
     messages.extend(conv_context)

@@ -87,6 +87,7 @@ class TenantSettings(Base):
     handoff_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     wazzup_api_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     target_action: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    faq_items: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
 
 class TenantAdmin(Base):

@@ -131,6 +131,9 @@ export default function SettingsPage() {
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [webhookResult, setWebhookResult] = useState<string | null>(null);
 
+  // FAQ state
+  const [faqItems, setFaqItems] = useState<Array<{ question: string; answer: string }>>([]);
+
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
     if (!localToken) {
@@ -143,6 +146,7 @@ export default function SettingsPage() {
       .then((res) => {
         setSettings(res);
         if (res.system_prompt) setGeneratedPrompt(res.system_prompt);
+        if (res.faq_items) setFaqItems(res.faq_items);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -169,6 +173,7 @@ export default function SettingsPage() {
         handoff_enabled: settings.handoff_enabled ?? true,
         wazzup_api_key: settings.wazzup_api_key || null,
         target_action: settings.target_action || null,
+        faq_items: faqItems.length > 0 ? faqItems : null,
       });
       setSettings(res);
       setSaved(true);
@@ -258,7 +263,6 @@ export default function SettingsPage() {
     { key: "services", label: "Какие услуги/товары предлагаете?", placeholder: "Букеты, композиции, подписка на цветы" },
     { key: "target_audience", label: "Кто ваш клиент?", placeholder: "Мужчины 25-45, дарят на 8 марта и ДР" },
     { key: "tone", label: "Тон общения", placeholder: "Дружелюбный, профессиональный, строгий" },
-    { key: "faq", label: "Самые частые вопросы клиентов", placeholder: "Сколько стоит доставка? Есть срочный заказ?" },
     { key: "no_promise", label: "Что бот НЕ должен обещать?", placeholder: "Скидки без согласования, доставку за 1 час" },
     { key: "contacts_hours", label: "Контакты и режим работы", placeholder: "+7 999 123-45-67, пн-пт 9:00-18:00" },
     { key: "extra_instructions", label: "Дополнительные инструкции (необязательно)", placeholder: "Всегда предлагай упаковку, не забудь про открытку" },
@@ -372,6 +376,73 @@ export default function SettingsPage() {
                     />
                   </div>
                 )}
+              </div>
+
+              {/* ─── FAQ ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Частые вопросы и ответы</h2>
+                <p className="text-xs text-muted mb-4">
+                  Добавь пары вопрос-ответ — бот будет использовать их при ответах. Если загружаешь файлы в RAG — можно не заполнять.
+                </p>
+
+                <div className="space-y-3">
+                  {faqItems.map((item, idx) => (
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted">Вопрос</label>
+                        <input
+                          type="text"
+                          value={item.question}
+                          onChange={(e) =>
+                            setFaqItems((items) =>
+                              items.map((it, i) => (i === idx ? { ...it, question: e.target.value } : it))
+                            )
+                          }
+                          placeholder="Сколько стоит доставка?"
+                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted">Ответ</label>
+                        <input
+                          type="text"
+                          value={item.answer}
+                          onChange={(e) =>
+                            setFaqItems((items) =>
+                              items.map((it, i) => (i === idx ? { ...it, answer: e.target.value } : it))
+                            )
+                          }
+                          placeholder="Доставка по Москве 500₽, от 3000₽ — бесплатно"
+                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={() => setFaqItems((items) => [...items, { question: "", answer: "" }])}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-white/[0.03] hover:text-text transition-colors"
+                  >
+                    + Добавить вопрос
+                  </button>
+                  {faqItems.length > 0 && (
+                    <button
+                      onClick={() => setFaqItems((items) => items.slice(0, -1))}
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-accent hover:bg-accent-soft/30 transition-colors"
+                    >
+                      Удалить последний
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 mt-5">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить FAQ"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
               </div>
 
               {/* ─── Follow-ups ─── */}
