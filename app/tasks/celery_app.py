@@ -7,7 +7,7 @@ celery_app = Celery(
     "ai_chat_bot",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks.followup"],
+    include=["app.tasks.followup", "app.tasks.message_processor"],
 )
 
 celery_app.conf.update(

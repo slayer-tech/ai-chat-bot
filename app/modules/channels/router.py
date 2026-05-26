@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.modules.channels.service import handle_inbound_message
+from app.modules.channels.service import save_inbound_message
+from app.tasks.message_processor import schedule_delayed_processing
 
 logger = structlog.get_logger()
 
@@ -83,7 +84,17 @@ async def wazzup_webhook(
             contact=contact,
         )
 
-        result = await handle_inbound_message(db, tenant_id, msg)
-        results.append(result)
+        saved = await save_inbound_message(db, tenant_id, msg)
+        if saved.get("status") == "saved":
+            await schedule_delayed_processing(
+                tenant_id=tenant_id,
+                dialog_id=saved["dialog_id"],
+                chat_id=saved["chat_id"],
+                chat_type=saved["chat_type"],
+                channel_id=saved["channel_id"],
+            )
+            results.append({"status": "debounced", "dialog_id": saved["dialog_id"]})
+        else:
+            results.append(saved)
 
     return {"status": "ok", "processed": len(results)}

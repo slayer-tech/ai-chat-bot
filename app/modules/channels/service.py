@@ -1,26 +1,28 @@
 """Channel processing via Wazzup."""
 
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.wazzup_client import wazzup_client
-from app.db.models import Dialog
+from app.db.models import Dialog, Message
 from app.schemas.webhook import UnifiedMessage, WazzupMessage
 
 logger = structlog.get_logger()
 
+# Delay in seconds before processing a batch of messages
+MESSAGE_DEBOUNCE_SECONDS = 10
 
-async def handle_inbound_message(
+
+async def ensure_dialog(
     db: AsyncSession,
     tenant_id: int,
     msg: WazzupMessage,
-) -> dict[str, Any]:
-    """Process a single Wazzup message."""
-    # Ensure dialog exists
+) -> Dialog:
+    """Get or create dialog for the user."""
     dialog = await db.scalar(
         select(Dialog).where(
             Dialog.tenant_id == tenant_id,
@@ -43,8 +45,25 @@ async def handle_inbound_message(
     else:
         dialog.last_message_at = datetime.now(timezone.utc)
         await db.commit()
+    return dialog
 
+
+async def save_inbound_message(
+    db: AsyncSession,
+    tenant_id: int,
+    msg: WazzupMessage,
+) -> dict[str, Any]:
+    """Save inbound message to DB and return metadata for delayed processing.
+
+    Returns:
+        dict with dialog_id, text, channel_id, chat_id, chat_type
+    """
+    dialog = await ensure_dialog(db, tenant_id, msg)
     dialog_id = dialog.id
+
+    # Early exit if dialog is already handoff/flood
+    if dialog.status in ("handoff", "flood"):
+        return {"status": dialog.status, "dialog_id": dialog_id}
 
     # Determine content
     text = msg.text or ""
@@ -59,32 +78,12 @@ async def handle_inbound_message(
         if transcribed:
             text = transcribed
 
-    # Early exit if dialog is already handoff/flood
-    if dialog.status in ("handoff", "flood"):
-        return {"status": dialog.status, "dialog_id": dialog_id}
-
-    # Fetch tenant settings for feature toggles
-    from app.modules.tenants.service import get_tenant_settings
-    tenant_settings = await get_tenant_settings(db, tenant_id)
-
-    # Push to processing pipeline
+    # Classify intent (for logging in memory)
     from app.modules.intent_classifier.service import classify_intent
-    from app.modules.conversation_memory.service import add_message
-    from app.modules.anti_spam_flood.service import check_flood
-    from app.modules.smart_escalation.service import check_handoff_needed
-    from app.modules.llm_router.service import generate_response
-    from app.modules.billing.service import log_billing
-
-    # Flood / anti-spam check
-    if tenant_settings is None or tenant_settings.anti_spam_enabled:
-        is_flood = await check_flood(db, tenant_id, msg.chatId, text)
-        if is_flood:
-            return {"status": "flood_detected", "dialog_id": dialog_id}
-
-    # Intent
     intent, confidence = await classify_intent(text)
 
     # Add to memory
+    from app.modules.conversation_memory.service import add_message
     await add_message(
         db,
         tenant_id=tenant_id,
@@ -98,27 +97,117 @@ async def handle_inbound_message(
         voice_url=voice_url,
     )
 
-    # Handoff / escalation check
+    return {
+        "status": "saved",
+        "dialog_id": dialog_id,
+        "text": text,
+        "channel_id": msg.channelId,
+        "chat_id": msg.chatId,
+        "chat_type": msg.chatType,
+    }
+
+
+async def process_dialog_response(
+    db: AsyncSession,
+    tenant_id: int,
+    dialog_id: int,
+    chat_id: str,
+    chat_type: str,
+    channel_id: str,
+) -> dict[str, Any]:
+    """Process pending messages for a dialog and send a response.
+
+    Gathers all user messages sent within the debounce window and uses the
+    latest (or combined) text for the response.
+    """
+    dialog = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
+    if not dialog or dialog.status in ("handoff", "flood"):
+        return {"status": dialog.status if dialog else "no_dialog", "dialog_id": dialog_id}
+
+    # Fetch recent user messages within debounce window
+    since = datetime.now(timezone.utc) - timedelta(seconds=MESSAGE_DEBOUNCE_SECONDS + 2)
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.dialog_id == dialog_id,
+            Message.role == "user",
+            Message.created_at >= since,
+        )
+        .order_by(desc(Message.created_at))
+    )
+    recent_messages = list(result.scalars().all())
+    if not recent_messages:
+        return {"status": "no_messages", "dialog_id": dialog_id}
+
+    # Combine messages (oldest first) or use the latest one
+    texts = [m.content_original or "" for m in reversed(recent_messages)]
+    combined_text = " ".join(t.strip() for t in texts if t.strip())
+    if not combined_text:
+        return {"status": "empty_text", "dialog_id": dialog_id}
+
+    # Fetch tenant settings for feature toggles
+    from app.modules.tenants.service import get_tenant_settings
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+
+    # Anti-spam check
+    from app.modules.anti_spam_flood.service import check_flood
+    if tenant_settings is None or tenant_settings.anti_spam_enabled:
+        is_flood = await check_flood(db, tenant_id, chat_id, combined_text)
+        if is_flood:
+            return {"status": "flood_detected", "dialog_id": dialog_id}
+
+    # Intent classification on combined text
+    from app.modules.intent_classifier.service import classify_intent
+    intent, confidence = await classify_intent(combined_text)
+
+    # Update the latest message with the combined intent (best effort)
+    latest_msg = recent_messages[0]
+    latest_msg.intent = intent
+    latest_msg.confidence = confidence
+    await db.commit()
+
+    # Handoff check
+    from app.modules.smart_escalation.service import check_handoff_needed
     if tenant_settings is None or tenant_settings.handoff_enabled:
-        handoff_needed = await check_handoff_needed(db, tenant_id, msg.chatId, intent, text)
+        handoff_needed = await check_handoff_needed(db, tenant_id, chat_id, intent, combined_text)
         if handoff_needed:
             return {"status": "handoff", "dialog_id": dialog_id}
 
     # Generate response
-    response_text = await generate_response(db, tenant_id, msg.chatId, text)
+    from app.modules.llm_router.service import generate_response
+    response_text = await generate_response(db, tenant_id, chat_id, combined_text)
 
     # Send outbound via Wazzup
     try:
-        await send_outbound(tenant_id, msg.channelId, msg.chatId, response_text, msg.chatType)
+        await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type)
     except Exception as exc:
         logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
-        # Still return OK to Wazzup so it doesn't retry; log the failure internally
 
     # Billing
-    await log_billing(db, tenant_id, "incoming", 1)
+    from app.modules.billing.service import log_billing
+    await log_billing(db, tenant_id, "incoming", len(recent_messages))
     await log_billing(db, tenant_id, "outgoing", 1)
 
     return {"status": "ok", "dialog_id": dialog_id}
+
+
+async def handle_inbound_message(
+    db: AsyncSession,
+    tenant_id: int,
+    msg: WazzupMessage,
+) -> dict[str, Any]:
+    """Legacy direct processing (used when debounce is disabled)."""
+    saved = await save_inbound_message(db, tenant_id, msg)
+    if saved.get("status") != "saved":
+        return saved
+    return await process_dialog_response(
+        db,
+        tenant_id,
+        saved["dialog_id"],
+        saved["chat_id"],
+        saved["chat_type"],
+        saved["channel_id"],
+    )
 
 
 async def send_outbound(
