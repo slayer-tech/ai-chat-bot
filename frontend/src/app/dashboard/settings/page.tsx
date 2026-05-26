@@ -367,13 +367,36 @@ export default function SettingsPage() {
 
                 {generatedPrompt && (
                   <div className="mt-5">
-                    <p className="text-xs uppercase tracking-wider text-muted mb-2">Сгенерированный промпт</p>
+                    <p className="text-xs uppercase tracking-wider text-muted mb-2">Промпт бота (можно редактировать вручную)</p>
                     <textarea
-                      readOnly
                       value={generatedPrompt}
-                      rows={8}
-                      className="w-full bg-void border border-border rounded-xl px-4 py-3 text-xs text-text font-mono resize-none focus:outline-none"
+                      onChange={(e) => {
+                        setGeneratedPrompt(e.target.value);
+                        setSettings((s) => ({ ...s, system_prompt: e.target.value }));
+                      }}
+                      rows={10}
+                      className="w-full bg-void border border-border rounded-xl px-4 py-3 text-xs text-text font-mono resize-y focus:outline-none focus:border-accent transition-colors"
                     />
+                    <button
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          const res = await api.updateSettings({ system_prompt: generatedPrompt });
+                          setSettings(res);
+                          setSaved(true);
+                          setTimeout(() => setSaved(false), 2000);
+                        } catch (e) {
+                          alert("Ошибка сохранения промпта");
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
+                      className="mt-3 btn-primary px-6"
+                    >
+                      {saving ? "Сохранение..." : "Сохранить промпт"}
+                    </button>
+                    {saved && <span className="text-sm text-green-400 ml-3">Сохранено!</span>}
                   </div>
                 )}
               </div>

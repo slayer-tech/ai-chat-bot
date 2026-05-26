@@ -99,6 +99,7 @@ export default function DashboardPage() {
   const { user, logout, token } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [settings, setSettings] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [botPaused, setBotPaused] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -118,6 +119,10 @@ export default function DashboardPage() {
     api
       .dashboard()
       .then(setStats)
+      .catch(() => {});
+    api
+      .settings()
+      .then(setSettings)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
@@ -284,7 +289,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Bot status + Channels */}
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-4 mb-8">
               <div className="card p-6">
                 <p className="text-xs uppercase tracking-wider text-muted mb-4">Статус бота</p>
                 <div className="flex items-center gap-3">
@@ -313,6 +318,30 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* System Prompt */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wider text-muted">Текущий промпт бота</p>
+                <Link
+                  href="/dashboard/settings"
+                  className="text-xs text-accent hover:text-accent-hover transition-colors"
+                >
+                  Редактировать →
+                </Link>
+              </div>
+              {settings.system_prompt ? (
+                <div className="bg-void border border-border rounded-xl px-4 py-3 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-text-secondary whitespace-pre-wrap font-mono leading-relaxed">
+                    {settings.system_prompt}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">
+                  Промпт не задан. <Link href="/dashboard/settings" className="text-accent">Сгенерируй его в настройках</Link>.
+                </p>
+              )}
             </div>
           </>
         )}
