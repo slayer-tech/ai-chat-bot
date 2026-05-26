@@ -55,10 +55,10 @@ async def wazzup_webhook(
         first_channel_id = messages[0].get("channelId", "")
         if first_channel_id:
             from app.db.models import TenantSettings
-            from sqlalchemy import func
+            from sqlalchemy import text
             stmt = select(TenantSettings).where(
-                func.jsonb_exists(TenantSettings.channel_config, first_channel_id)
-            )
+                text("channel_config::jsonb ? :channel_id")
+            ).params(channel_id=first_channel_id)
             ts = await db.scalar(stmt)
             if ts:
                 tenant_id = ts.tenant_id
