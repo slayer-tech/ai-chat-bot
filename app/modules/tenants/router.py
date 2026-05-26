@@ -275,39 +275,31 @@ async def put_admin_settings(
     tenant_id: int = Depends(get_current_tenant_id),
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> TenantSettingsSchema:
-    tenant_settings = await update_tenant_settings(db, tenant_id, data)
-    # Auto-register webhook if Wazzup API key was just set/changed
-    if data.wazzup_api_key and settings.WAZZUP_WEBHOOK_URL:
-        try:
-            from app.clients.wazzup_client import wazzup_client
-            await wazzup_client.set_webhook(data.wazzup_api_key, settings.WAZZUP_WEBHOOK_URL)
-        except Exception as exc:
-            logger = structlog.get_logger()
-            logger.error("wazzup_webhook_auto_register_failed", tenant_id=tenant_id, error=str(exc))
-    return tenant_settings
+    return await update_tenant_settings(db, tenant_id, data)
 
 
 @admin_router.post("/register-wazzup-webhook")
 async def register_wazzup_webhook_manual(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> dict[str, str]:
-    """Manually trigger Wazzup webhook registration for this tenant."""
+    """Trigger Wazzup webhook registration for this tenant."""
     from app.clients.wazzup_client import wazzup_client
     from app.modules.tenants.service import get_tenant_settings
 
     tenant_settings = await get_tenant_settings(db, tenant_id)
     if not tenant_settings or not tenant_settings.wazzup_api_key:
         raise HTTPException(status_code=400, detail="Wazzup API key not configured")
-    if not settings.WAZZUP_WEBHOOK_URL:
-        raise HTTPException(status_code=400, detail="WAZZUP_WEBHOOK_URL not configured on server")
+
+    # Build webhook URL from the incoming request's public origin
+    base = str(request.base_url).rstrip("/")
+    webhook_url = f"{base}/webhook/wazzup"
 
     try:
-        result = await wazzup_client.set_webhook(
-            tenant_settings.wazzup_api_key, settings.WAZZUP_WEBHOOK_URL
-        )
-        return {"status": "ok", "wazzup_response": str(result)}
+        result = await wazzup_client.set_webhook(tenant_settings.wazzup_api_key, webhook_url)
+        return {"status": "ok", "wazzup_response": str(result), "webhook_url": webhook_url}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Wazzup API error: {exc}") from exc
 
