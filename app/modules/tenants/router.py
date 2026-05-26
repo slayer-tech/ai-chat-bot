@@ -294,7 +294,8 @@ async def register_wazzup_webhook_manual(
         raise HTTPException(status_code=400, detail="Wazzup API key not configured")
 
     # Build webhook URL from the incoming request's public origin
-    base = str(request.base_url).rstrip("/")
+    # Force HTTPS because Wazzup requires secure webhooks
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
     webhook_url = f"{base}/webhook/wazzup"
 
     try:
