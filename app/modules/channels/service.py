@@ -48,6 +48,92 @@ async def ensure_dialog(
     return dialog
 
 
+async def _sync_cross_channel_context(
+    db: AsyncSession,
+    tenant_id: int,
+    dialog: Dialog,
+    msg: WazzupMessage,
+) -> bool:
+    """Sync context from other channels by phone number.
+
+    Looks for dialogs with the same phone in different channels.
+    If found and old dialog is active — copies summary and context.
+    If old dialog is closed/handoff/flood — marks new dialog as handoff.
+
+    Returns:
+        True if dialog was marked as handoff (should not process further).
+    """
+    phone = msg.contact.phone if msg.contact else None
+    if not phone:
+        return False
+
+    # Find dialogs with same phone in OTHER channels
+    result = await db.execute(
+        select(Dialog)
+        .where(
+            Dialog.tenant_id == tenant_id,
+            Dialog.phone == phone,
+            Dialog.channel != msg.chatType,
+        )
+        .order_by(desc(Dialog.last_message_at))
+    )
+    other_dialogs = result.scalars().all()
+    if not other_dialogs:
+        return False
+
+    old_dialog = other_dialogs[0]  # Most recent
+
+    # If old dialog is finished — mark new as handoff immediately
+    if old_dialog.status in ("handoff", "flood", "closed"):
+        dialog.status = "handoff"
+        await db.commit()
+        logger.info(
+            "cross_channel_handoff",
+            old_channel=old_dialog.channel,
+            new_channel=dialog.channel,
+            phone=phone,
+            reason=f"old_dialog_{old_dialog.status}",
+        )
+        return True
+
+    # If old dialog is active — copy summary and recent messages as context
+    if old_dialog.summary:
+        dialog.summary = old_dialog.summary
+        await db.commit()
+
+    # Copy last 5 messages from old dialog as system context
+    old_messages = await db.execute(
+        select(Message)
+        .where(Message.dialog_id == old_dialog.id)
+        .order_by(desc(Message.created_at))
+        .limit(5)
+    )
+    msgs = list(reversed(old_messages.scalars().all()))
+    if msgs:
+        context_text = "\n".join(
+            f"{'Клиент' if m.role == 'user' else 'Ассистент'}: {m.content_original or ''}"
+            for m in msgs
+        )
+        from app.modules.conversation_memory.service import add_message
+        await add_message(
+            db,
+            tenant_id=tenant_id,
+            dialog_id=dialog.id,
+            role="system",
+            content_original=f"[Контекст из {old_dialog.channel}] Предыдущий диалог:\n{context_text}",
+            content_tokenized=None,
+        )
+        logger.info(
+            "cross_channel_sync",
+            old_channel=old_dialog.channel,
+            new_channel=dialog.channel,
+            phone=phone,
+            messages_copied=len(msgs),
+        )
+
+    return False
+
+
 async def save_inbound_message(
     db: AsyncSession,
     tenant_id: int,
@@ -64,6 +150,11 @@ async def save_inbound_message(
     # Early exit if dialog is already handoff/flood
     if dialog.status in ("handoff", "flood"):
         return {"status": dialog.status, "dialog_id": dialog_id}
+
+    # Cross-channel sync by phone (WhatsApp ↔ Max, etc.)
+    is_handoff = await _sync_cross_channel_context(db, tenant_id, dialog, msg)
+    if is_handoff:
+        return {"status": "handoff", "dialog_id": dialog_id}
 
     # Determine content
     text = msg.text or ""
@@ -121,7 +212,7 @@ async def process_dialog_response(
     latest (or combined) text for the response.
     """
     dialog = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
-    if not dialog or dialog.status in ("handoff", "flood"):
+    if not dialog or dialog.status in ("handoff", "flood", "closed"):
         return {"status": dialog.status if dialog else "no_dialog", "dialog_id": dialog_id}
 
     # Fetch recent user messages within debounce window

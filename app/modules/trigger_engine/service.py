@@ -7,7 +7,7 @@ import structlog
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.groq_client import groq_client
+from app.clients.yandex_gpt import yandex_gpt_client
 from app.clients.wazzup_client import wazzup_client
 from app.db.models import Dialog, FollowupTrigger, Message
 from app.modules.conversation_memory.service import build_context
@@ -77,9 +77,8 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             + "\n".join(f"{m['role']}: {m['content']}" for m in context[-5:])
         )
         try:
-            resp = await groq_client.chat_completion(
+            resp = await yandex_gpt_client.chat_completion(
                 messages=[{"role": "system", "content": prompt}],
-                model=groq_client.classify_intent_model(),
                 temperature=0.7,
                 max_tokens=150,
             )
