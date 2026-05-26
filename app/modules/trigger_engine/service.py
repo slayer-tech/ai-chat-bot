@@ -1,7 +1,7 @@
 """Auto follow-up (trigger engine)."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
 from sqlalchemy import and_, select
@@ -14,14 +14,64 @@ from app.modules.conversation_memory.service import build_context
 
 logger = structlog.get_logger()
 
-TRIGGERS = {
-    "new_lead_30min": {"delay_minutes": 30, "label": "Не ответил на приветствие"},
-    "no_answer_2h": {"delay_minutes": 120, "label": "Не ответил на вопрос 2ч"},
-    "no_answer_24h": {"delay_minutes": 1440, "label": "Диалог завис 24ч"},
-    "thinking_3d": {"delay_minutes": 4320, "label": "Сделка думает 3 дня"},
-    "post_meeting_2h": {"delay_minutes": 120, "label": "Follow-up после встречи"},
-    "abandoned_7d": {"delay_minutes": 10080, "label": "Реактивация"},
+# Default follow-up scenarios (Russian)
+DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
+    "new_lead_30min": {
+        "enabled": True,
+        "delay_minutes": 30,
+        "label": "Не ответил на приветствие",
+        "text": "",
+    },
+    "no_answer_2h": {
+        "enabled": True,
+        "delay_minutes": 120,
+        "label": "Не ответил на вопрос 2 часа",
+        "text": "",
+    },
+    "no_answer_24h": {
+        "enabled": True,
+        "delay_minutes": 1440,
+        "label": "Диалог завис на сутки",
+        "text": "",
+    },
+    "thinking_3d": {
+        "enabled": False,
+        "delay_minutes": 4320,
+        "label": "Сделка думает 3 дня",
+        "text": "",
+    },
+    "post_meeting_2h": {
+        "enabled": False,
+        "delay_minutes": 120,
+        "label": "Фоллоу-ап после встречи",
+        "text": "",
+    },
+    "abandoned_7d": {
+        "enabled": False,
+        "delay_minutes": 10080,
+        "label": "Реактивация спустя неделю",
+        "text": "",
+    },
 }
+
+
+def _get_trigger_config(scenarios: Optional[dict], trigger_type: str) -> dict[str, Any]:
+    """Get trigger config from tenant settings or fall back to defaults."""
+    if scenarios and trigger_type in scenarios:
+        cfg = scenarios[trigger_type]
+        default = DEFAULT_TRIGGERS.get(trigger_type, {})
+        return {
+            "enabled": cfg.get("enabled", default.get("enabled", False)),
+            "delay_minutes": cfg.get("delay_minutes", default.get("delay_minutes", 60)),
+            "label": cfg.get("label", default.get("label", trigger_type)),
+            "text": cfg.get("text", default.get("text", "")),
+        }
+    return DEFAULT_TRIGGERS.get(trigger_type, {"enabled": False, "delay_minutes": 60, "label": trigger_type, "text": ""})
+
+
+def get_default_scenarios() -> dict[str, dict[str, Any]]:
+    """Return default follow-up scenarios for new tenants."""
+    return {k: dict(v) for k, v in DEFAULT_TRIGGERS.items()}
 
 
 async def schedule_trigger(
@@ -29,12 +79,15 @@ async def schedule_trigger(
     tenant_id: int,
     dialog_id: int,
     trigger_type: str,
+    scenarios: Optional[dict] = None,
     scheduled_at: Optional[datetime] = None,
-) -> FollowupTrigger:
-    """Schedule a follow-up trigger."""
-    if trigger_type not in TRIGGERS:
-        raise ValueError(f"Unknown trigger type: {trigger_type}")
-    delay = TRIGGERS[trigger_type]["delay_minutes"]
+) -> Optional[FollowupTrigger]:
+    """Schedule a follow-up trigger if enabled in tenant settings."""
+    cfg = _get_trigger_config(scenarios, trigger_type)
+    if not cfg["enabled"]:
+        return None
+
+    delay = cfg["delay_minutes"]
     at = scheduled_at or (datetime.now(timezone.utc) + timedelta(minutes=delay))
     trigger = FollowupTrigger(
         tenant_id=tenant_id,
@@ -63,30 +116,58 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         .order_by(FollowupTrigger.scheduled_at)
     )
     triggers = result.scalars().all()
+
     for trig in triggers:
         dialog = await db.scalar(select(Dialog).where(Dialog.id == trig.dialog_id))
         if not dialog or dialog.status != "active":
             trig.status = "cancelled"
             await db.commit()
             continue
-        # Generate follow-up text with GPT-4o
-        context = await build_context(db, dialog.id)
-        prompt = (
-            "You are a polite Russian sales assistant. Write a short follow-up message "
-            "based on the conversation history. Keep it under 200 chars.\n\n"
-            + "\n".join(f"{m['role']}: {m['content']}" for m in context[-5:])
-        )
-        try:
-            resp = await yandex_gpt_client.chat_completion(
-                messages=[{"role": "system", "content": prompt}],
-                temperature=0.7,
-                max_tokens=150,
+
+        # Fetch tenant settings for follow-up config
+        from app.modules.tenants.service import get_tenant_settings
+        tenant_settings = await get_tenant_settings(db, dialog.tenant_id)
+
+        if not tenant_settings or not tenant_settings.followup_enabled:
+            trig.status = "cancelled"
+            await db.commit()
+            continue
+
+        cfg = _get_trigger_config(tenant_settings.followup_scenarios, trig.trigger_type)
+        if not cfg["enabled"]:
+            trig.status = "cancelled"
+            await db.commit()
+            continue
+
+        # Use custom text if provided, otherwise generate with YandexGPT
+        text_plain = cfg.get("text", "").strip()
+        if not text_plain:
+            context = await build_context(db, dialog.id)
+            prompt = (
+                "Ты вежливый русскоязычный sales-ассистент. Напиши короткое follow-up сообщение "
+                "на основе истории диалога. Не более 200 символов. Будь дружелюбным и ненавязчивым.\n\n"
+                + "\n".join(f"{'Клиент' if m['role'] == 'user' else 'Ассистент'}: {m['content']}" for m in context[-5:])
             )
-            text_plain = resp["choices"][0]["message"]["content"].strip()
+            try:
+                resp = await yandex_gpt_client.chat_completion(
+                    messages=[{"role": "system", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=150,
+                )
+                text_plain = resp["choices"][0]["message"]["content"].strip()
+            except Exception as exc:
+                logger.error("followup_generation_failed", trigger_id=trig.id, error=str(exc))
+                trig.status = "failed"
+                await db.commit()
+                continue
+
+        try:
             await wazzup_client.send_message(dialog.channel, dialog.external_user_id, text_plain)
             trig.status = "sent"
             trig.sent_at = now
             await db.commit()
-            logger.info("followup_sent", trigger_id=trig.id, dialog_id=dialog.id)
+            logger.info("followup_sent", trigger_id=trig.id, dialog_id=dialog.id, type=trig.trigger_type)
         except Exception as exc:
             logger.error("followup_failed", trigger_id=trig.id, error=str(exc))
+            trig.status = "failed"
+            await db.commit()

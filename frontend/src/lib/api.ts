@@ -114,4 +114,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  followups: () => fetchJson<{ followup_enabled: boolean; scenarios: Record<string, any> }>("/api/v1/admin/followups"),
+
+  updateFollowups: (data: { followup_enabled: boolean; scenarios: Record<string, any> }) =>
+    fetchJson<{ status: string }>("/api/v1/admin/followups", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };

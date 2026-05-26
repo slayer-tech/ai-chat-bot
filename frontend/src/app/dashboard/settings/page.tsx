@@ -121,6 +121,12 @@ export default function SettingsPage() {
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
 
+  // Follow-ups state
+  const [followupsEnabled, setFollowupsEnabled] = useState(true);
+  const [followupScenarios, setFollowupScenarios] = useState<Record<string, any>>({});
+  const [followupsLoading, setFollowupsLoading] = useState(true);
+  const [followupsSaved, setFollowupsSaved] = useState(false);
+
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
     if (!localToken) {
@@ -137,6 +143,14 @@ export default function SettingsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
     loadDocs();
+    api
+      .followups()
+      .then((res) => {
+        setFollowupsEnabled(res.followup_enabled);
+        setFollowupScenarios(res.scenarios || {});
+      })
+      .catch(() => {})
+      .finally(() => setFollowupsLoading(false));
   }, [router]);
 
   const loadDocs = () => {
@@ -157,6 +171,19 @@ export default function SettingsPage() {
       alert("Ошибка сохранения");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveFollowups = async () => {
+    try {
+      await api.updateFollowups({
+        followup_enabled: followupsEnabled,
+        scenarios: followupScenarios,
+      });
+      setFollowupsSaved(true);
+      setTimeout(() => setFollowupsSaved(false), 2000);
+    } catch (e) {
+      alert("Ошибка сохранения фоллоу-апов");
     }
   };
 
@@ -322,6 +349,90 @@ export default function SettingsPage() {
                     />
                   </div>
                 )}
+              </div>
+
+              {/* ─── Follow-ups ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Авто-фоллоу апсы</h2>
+                <p className="text-xs text-muted mb-4">
+                  Автоматические напоминания клиентам если они не ответили
+                </p>
+
+                <Toggle
+                  label="Включить авто-фоллоу апсы"
+                  description="Бот будет сам отправлять follow-up сообщения"
+                  checked={followupsEnabled}
+                  onChange={setFollowupsEnabled}
+                />
+
+                {followupsLoading ? (
+                  <div className="text-xs text-muted mt-4">Загрузка сценариев...</div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {Object.entries(followupScenarios).map(([key, scenario]: [string, any]) => (
+                      <div key={key} className="rounded-xl bg-white/[0.02] border border-border p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-text">{scenario.label || key}</p>
+                          <button
+                            onClick={() =>
+                              setFollowupScenarios((s) => ({
+                                ...s,
+                                [key]: { ...s[key], enabled: !s[key]?.enabled },
+                              }))
+                            }
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                              scenario.enabled ? "bg-accent" : "bg-white/[0.08]"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                scenario.enabled ? "translate-x-5" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted">Задержка (минут)</label>
+                            <input
+                              type="number"
+                              value={scenario.delay_minutes || 0}
+                              onChange={(e) =>
+                                setFollowupScenarios((s) => ({
+                                  ...s,
+                                  [key]: { ...s[key], delay_minutes: parseInt(e.target.value) || 0 },
+                                }))
+                              }
+                              className="w-full bg-void border border-border rounded-lg px-3 py-1.5 text-sm text-text mt-1"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted">Текст (пусто = AI генерирует)</label>
+                            <input
+                              type="text"
+                              value={scenario.text || ""}
+                              onChange={(e) =>
+                                setFollowupScenarios((s) => ({
+                                  ...s,
+                                  [key]: { ...s[key], text: e.target.value },
+                                }))
+                              }
+                              placeholder="Авто-сообщение..."
+                              className="w-full bg-void border border-border rounded-lg px-3 py-1.5 text-sm text-text placeholder:text-muted mt-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 mt-5">
+                  <button onClick={handleSaveFollowups} className="btn-primary px-6">
+                    Сохранить фоллоу апсы
+                  </button>
+                  {followupsSaved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
               </div>
 
               {/* ─── Security Toggles ─── */}

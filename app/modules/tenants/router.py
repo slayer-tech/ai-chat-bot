@@ -317,3 +317,38 @@ async def generate_prompt_endpoint(
     await update_tenant_settings(db, tenant_id, TenantSettingsUpdate(system_prompt=full_prompt))
 
     return {"system_prompt": full_prompt}
+
+
+@admin_router.get("/followups")
+async def get_followup_scenarios(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, Any]:
+    """Get follow-up scenarios with defaults."""
+    from app.modules.trigger_engine.service import get_default_scenarios
+    settings = await get_tenant_settings(db, tenant_id)
+    scenarios = settings.followup_scenarios if settings and settings.followup_scenarios else get_default_scenarios()
+    return {
+        "followup_enabled": settings.followup_enabled if settings else True,
+        "scenarios": scenarios,
+    }
+
+
+@admin_router.put("/followups")
+async def put_followup_scenarios(
+    data: dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, Any]:
+    """Save follow-up scenarios."""
+    await update_tenant_settings(
+        db,
+        tenant_id,
+        TenantSettingsUpdate(
+            followup_enabled=data.get("followup_enabled", True),
+            followup_scenarios=data.get("scenarios"),
+        ),
+    )
+    return {"status": "ok"}
