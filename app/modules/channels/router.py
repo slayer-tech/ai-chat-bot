@@ -16,6 +16,13 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/webhook", tags=["webhooks"])
 
 
+@router.get("/wazzup")
+async def wazzup_webhook_get() -> dict[str, Any]:
+    """Wazzup sends GET request to verify webhook during registration."""
+    logger.info("wazzup_webhook_get_verify")
+    return {"status": "ok"}
+
+
 @router.post("/wazzup")
 async def wazzup_webhook(
     request: Request,
