@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 
+from asgiref.sync import async_to_sync
 from celery import shared_task
 
 from app.clients.redis_client import get_redis
@@ -55,9 +56,9 @@ def process_delayed_message(
 
     Only runs if no newer message arrived for this dialog within the debounce window.
     """
-    return asyncio.run(_process_delayed_message_async(
+    return async_to_sync(_process_delayed_message_async)(
         tenant_id, dialog_id, chat_id, chat_type, channel_id, task_id
-    ))
+    )
 
 
 async def schedule_delayed_processing(

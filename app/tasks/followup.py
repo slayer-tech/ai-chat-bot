@@ -1,8 +1,8 @@
 """Celery tasks for follow-ups and maintenance."""
 
-import asyncio
 from datetime import datetime, timezone
 
+from asgiref.sync import async_to_sync
 from celery import shared_task
 
 from app.db.session import AsyncSessionLocal
@@ -19,7 +19,7 @@ async def _process_followups_async() -> None:
 @shared_task
 def process_followups() -> None:
     """Process pending follow-up triggers."""
-    asyncio.run(_process_followups_async())
+    async_to_sync(_process_followups_async)()
 
 
 async def _reset_monthly_messages_async() -> None:
@@ -40,4 +40,4 @@ async def _reset_monthly_messages_async() -> None:
 @shared_task
 def reset_monthly_messages() -> None:
     """Reset used_messages for all tenants on the 1st of the month."""
-    asyncio.run(_reset_monthly_messages_async())
+    async_to_sync(_reset_monthly_messages_async)()
