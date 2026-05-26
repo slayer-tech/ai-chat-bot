@@ -79,8 +79,10 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
+    # Use YandexGPT Pro for client-facing responses (higher quality)
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
+        model="yandexgpt",
         temperature=0.7,
         max_tokens=1000,
     )
