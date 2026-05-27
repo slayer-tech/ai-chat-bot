@@ -106,5 +106,6 @@ async def build_context(db: AsyncSession, dialog_id: int) -> list[dict[str, str]
         context.append({"role": "system", "content": f"Summary of conversation so far: {summary}"})
     for m in reversed(messages):
         content = m.content_tokenized or m.content_original or ""
-        context.append({"role": m.role, "content": content})
+        if content.strip():
+            context.append({"role": m.role, "content": content})
     return context

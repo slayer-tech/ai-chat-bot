@@ -76,10 +76,12 @@ async def generate_response(
         logger.warning("generate_response_empty_message", dialog_id=dialog_id, tenant_id=tenant_id)
         return "Извините, я не получил текст сообщения. Можете повторить?"
 
-    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
-    if faq_text:
+    messages: list[dict[str, str]] = []
+    if system_prompt and system_prompt.strip():
+        messages.append({"role": "system", "content": system_prompt})
+    if faq_text and faq_text.strip():
         messages.append({"role": "system", "content": f"Частые вопросы и ответы:\n{faq_text}"})
-    if rag_text:
+    if rag_text and rag_text.strip():
         messages.append({"role": "system", "content": f"Relevant info:\n{rag_text}"})
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
