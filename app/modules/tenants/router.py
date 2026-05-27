@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -43,6 +44,8 @@ from app.schemas.tenant import (
     TenantUpdate,
     TokenResponse,
 )
+
+logger = structlog.get_logger()
 
 
 class SuperAdminSetup(BaseModel):
@@ -270,12 +273,26 @@ async def get_admin_settings(
 
 @admin_router.put("/settings", response_model=TenantSettingsSchema)
 async def put_admin_settings(
+    request: Request,
     data: TenantSettingsUpdate,
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> TenantSettingsSchema:
-    return await update_tenant_settings(db, tenant_id, data)
+    settings = await update_tenant_settings(db, tenant_id, data)
+
+    # Auto-register Wazzup webhook if API key is present
+    if settings.wazzup_api_key:
+        from app.clients.wazzup_client import wazzup_client
+        base = str(request.base_url).rstrip("/").replace("http://", "https://")
+        webhook_url = f"{base}/webhook/wazzup/{tenant_id}"
+        try:
+            await wazzup_client.set_webhook(settings.wazzup_api_key, webhook_url)
+            logger.info("wazzup_webhook_auto_registered", tenant_id=tenant_id, webhook_url=webhook_url)
+        except Exception as exc:
+            logger.warning("wazzup_webhook_auto_register_failed", tenant_id=tenant_id, error=str(exc))
+
+    return settings
 
 
 @admin_router.post("/register-wazzup-webhook")
@@ -296,7 +313,7 @@ async def register_wazzup_webhook_manual(
     # Build webhook URL from the incoming request's public origin
     # Force HTTPS because Wazzup requires secure webhooks
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
-    webhook_url = f"{base}/webhook/wazzup"
+    webhook_url = f"{base}/webhook/wazzup/{tenant_id}"
 
     try:
         result = await wazzup_client.set_webhook(tenant_settings.wazzup_api_key, webhook_url)

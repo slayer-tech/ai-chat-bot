@@ -3,8 +3,7 @@
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -16,19 +15,20 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/webhook", tags=["webhooks"])
 
 
-@router.get("/wazzup")
-async def wazzup_webhook_get() -> dict[str, Any]:
+@router.get("/wazzup/{tenant_id}")
+async def wazzup_webhook_get(tenant_id: int) -> dict[str, Any]:
     """Wazzup sends GET request to verify webhook during registration."""
-    logger.info("wazzup_webhook_get_verify")
+    logger.info("wazzup_webhook_get_verify", tenant_id=tenant_id)
     return {"status": "ok"}
 
 
-@router.post("/wazzup")
+@router.post("/wazzup/{tenant_id}")
 async def wazzup_webhook(
+    tenant_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Receive inbound messages from Wazzup."""
+    """Receive inbound messages from Wazzup for a specific tenant."""
     body = await request.body()
 
     # Parse raw JSON to avoid 422 on unexpected Wazzup payloads
@@ -38,33 +38,16 @@ async def wazzup_webhook(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    logger.info("wazzup_webhook_raw", body=data)
+    logger.info("wazzup_webhook_raw", tenant_id=tenant_id, body=data)
 
     # Respond to Wazzup test ping (sent during webhook registration)
     if data.get("test") is True:
-        logger.info("wazzup_webhook_test_ping")
+        logger.info("wazzup_webhook_test_ping", tenant_id=tenant_id)
         return {"status": "ok"}
 
     messages = data.get("messages", [])
     if not isinstance(messages, list):
         return {"status": "ok", "processed": 0}
-
-    # Lookup tenant by first message's channelId via channel_config mapping
-    tenant_id = 1
-    if messages:
-        first_channel_id = messages[0].get("channelId", "")
-        if first_channel_id:
-            from app.db.models import TenantSettings
-            from sqlalchemy import text
-            stmt = select(TenantSettings).where(
-                text("channel_config::jsonb ? :channel_id")
-            ).params(channel_id=first_channel_id)
-            ts = await db.scalar(stmt)
-            if ts:
-                tenant_id = ts.tenant_id
-                logger.info("wazzup_tenant_lookup", channel_id=first_channel_id, tenant_id=tenant_id)
-            else:
-                logger.warning("wazzup_tenant_not_found", channel_id=first_channel_id, fallback_tenant_id=tenant_id)
 
     results = []
 
