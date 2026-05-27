@@ -16,8 +16,9 @@ class YandexSpeechKitClient:
     """Client for Yandex SpeechKit Streaming STT."""
 
     def __init__(self) -> None:
-        self.api_key = settings.YANDEX_SPEECHKIT_API_KEY
-        self.folder_id = settings.YANDEX_SPEECHKIT_FOLDER_ID
+        # Fallback to YANDEX_API_KEY if SpeechKit key is not configured
+        self.api_key = settings.YANDEX_SPEECHKIT_API_KEY or settings.YANDEX_API_KEY
+        self.folder_id = settings.YANDEX_SPEECHKIT_FOLDER_ID or settings.YANDEX_FOLDER_ID
         self.base_url = settings.YANDEX_SPEECHKIT_BASE_URL
         self.headers = {
             "Authorization": f"Api-Key {self.api_key}",

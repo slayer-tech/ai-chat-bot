@@ -35,4 +35,4 @@ async def process_voice_if_needed(voice_url: Optional[str]) -> str:
         return text
     except Exception as exc:
         logger.error("voice_processing_failed", url=voice_url, error=str(exc))
-        return "[голосовое сообщение]"
+        return ""
