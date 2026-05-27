@@ -648,27 +648,36 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-text mb-1.5">
-                    Время отправки follow-up сообщений
-                  </label>
-                  <p className="text-xs text-muted mb-2">
-                    Фоллоу-апы будут отправляться только в это время (timezone: {settings.timezone || "Europe/Moscow"})
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="time"
-                      value={settings.smart_delay_start || "09:00"}
-                      onChange={(e) => setSettings((s) => ({ ...s, smart_delay_start: e.target.value }))}
-                      className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
-                    />
-                    <span className="text-muted">—</span>
-                    <input
-                      type="time"
-                      value={settings.smart_delay_end || "21:00"}
-                      onChange={(e) => setSettings((s) => ({ ...s, smart_delay_end: e.target.value }))}
-                      className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
-                    />
-                  </div>
+                  <Toggle
+                    label="Отправлять follow-up только в рабочее время"
+                    description="Если выключено — фоллоу-апы приходят в любое время"
+                    checked={!!(settings.smart_delay_start && settings.smart_delay_end)}
+                    onChange={(v) => {
+                      if (v) {
+                        setSettings((s) => ({ ...s, smart_delay_start: "09:00", smart_delay_end: "21:00" }));
+                      } else {
+                        setSettings((s) => ({ ...s, smart_delay_start: null, smart_delay_end: null }));
+                      }
+                    }}
+                  />
+                  {!!(settings.smart_delay_start && settings.smart_delay_end) && (
+                    <div className="flex items-center gap-3 mt-2">
+                      <input
+                        type="time"
+                        value={settings.smart_delay_start || "09:00"}
+                        onChange={(e) => setSettings((s) => ({ ...s, smart_delay_start: e.target.value }))}
+                        className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                      />
+                      <span className="text-muted">—</span>
+                      <input
+                        type="time"
+                        value={settings.smart_delay_end || "21:00"}
+                        onChange={(e) => setSettings((s) => ({ ...s, smart_delay_end: e.target.value }))}
+                        className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                      />
+                      <span className="text-xs text-muted">({settings.timezone || "Europe/Moscow"})</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4 mt-5">

@@ -42,6 +42,17 @@ async def ensure_dialog(
         db.add(dialog)
         await db.commit()
         await db.refresh(dialog)
+        # Schedule new-lead follow-up for fresh dialogs
+        from app.modules.trigger_engine.service import schedule_trigger
+        from app.modules.tenants.service import get_tenant_settings
+        tenant_settings = await get_tenant_settings(db, tenant_id)
+        await schedule_trigger(
+            db,
+            tenant_id=tenant_id,
+            dialog_id=dialog.id,
+            trigger_type="new_lead_30min",
+            scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
+        )
     else:
         dialog.last_message_at = datetime.now(timezone.utc)
         await db.commit()
@@ -316,6 +327,23 @@ async def process_dialog_response(
                 await db.commit()
             logger.info("goal_reached_handoff", tenant_id=tenant_id, dialog_id=dialog_id, target=tenant_settings.target_action)
             return {"status": "goal_reached", "dialog_id": dialog_id}
+
+    # Schedule follow-up triggers after bot response
+    from app.modules.trigger_engine.service import schedule_trigger
+    await schedule_trigger(
+        db,
+        tenant_id=tenant_id,
+        dialog_id=dialog_id,
+        trigger_type="no_answer_2h",
+        scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
+    )
+    await schedule_trigger(
+        db,
+        tenant_id=tenant_id,
+        dialog_id=dialog_id,
+        trigger_type="no_answer_24h",
+        scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
+    )
 
     # Billing
     from app.modules.billing.service import log_billing
