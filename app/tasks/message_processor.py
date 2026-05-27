@@ -85,15 +85,27 @@ async def schedule_delayed_processing(
 ) -> str:
     """Schedule a delayed processing task and store its ID in Redis.
 
+    Revokes any previous pending task for this chat so that only the latest
+    message batch is processed after the debounce window.
+
     Returns the task ID.
     """
     task_id = str(uuid.uuid4())
     redis = await get_redis()
     redis_key = f"pending_task:{tenant_id}:{chat_id}"
+
+    # Revoke previous Celery task if one exists
+    old_task_id = await redis.get(redis_key)
+    if old_task_id:
+        process_delayed_message.app.control.revoke(
+            old_task_id.decode(), terminate=False
+        )
+
     await redis.setex(redis_key, debounce_seconds + 5, task_id)
 
     process_delayed_message.apply_async(
         args=[tenant_id, dialog_id, chat_id, chat_type, channel_id, task_id],
         countdown=debounce_seconds,
+        task_id=task_id,
     )
     return task_id
