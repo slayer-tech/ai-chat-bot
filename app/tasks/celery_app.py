@@ -16,6 +16,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone=settings.TIMEZONE,
     enable_utc=True,
+    worker_max_tasks_per_child=1,
     beat_schedule={
         "process-followups": {
             "task": "app.tasks.followup.process_followups",
