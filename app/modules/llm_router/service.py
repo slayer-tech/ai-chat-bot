@@ -71,6 +71,11 @@ async def generate_response(
     # Conversation context
     conv_context = await build_context(db, dialog_id)
 
+    # Guard against empty current message
+    if not current_message or not current_message.strip():
+        logger.warning("generate_response_empty_message", dialog_id=dialog_id, tenant_id=tenant_id)
+        return "Извините, я не получил текст сообщения. Можете повторить?"
+
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
     if faq_text:
         messages.append({"role": "system", "content": f"Частые вопросы и ответы:\n{faq_text}"})

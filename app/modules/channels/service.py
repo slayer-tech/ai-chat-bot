@@ -233,6 +233,7 @@ async def process_dialog_response(
     # Combine messages (oldest first) or use the latest one
     texts = [m.content_original or "" for m in reversed(recent_messages)]
     combined_text = " ".join(t.strip() for t in texts if t.strip())
+    logger.info("dialog_combined_text", dialog_id=dialog_id, combined_text=combined_text[:100], message_count=len(recent_messages), texts=texts)
 
     # Fetch tenant settings for feature toggles
     from app.modules.tenants.service import get_tenant_settings
