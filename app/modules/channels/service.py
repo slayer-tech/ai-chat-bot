@@ -271,6 +271,17 @@ async def process_dialog_response(
     from app.modules.llm_router.service import generate_response
     response_text = await generate_response(db, tenant_id, chat_id, combined_text)
 
+    # Save bot response to memory
+    from app.modules.conversation_memory.service import add_message
+    await add_message(
+        db,
+        tenant_id=tenant_id,
+        dialog_id=dialog_id,
+        role="assistant",
+        content_original=response_text,
+        content_tokenized=None,
+    )
+
     # Send outbound via Wazzup
     try:
         await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type, wazzup_key)
