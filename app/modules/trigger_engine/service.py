@@ -102,6 +102,36 @@ async def schedule_trigger(
     return trigger
 
 
+def _is_within_business_hours(now_utc: datetime, tenant_settings) -> bool:
+    """Check if current UTC time falls within tenant's business hours.
+
+    If smart_delay_start/end are not set — always returns True.
+    """
+    if not tenant_settings:
+        return True
+    start = tenant_settings.smart_delay_start
+    end = tenant_settings.smart_delay_end
+    if not start or not end:
+        return True
+
+    import pytz
+
+    tz_name = tenant_settings.timezone or "Europe/Moscow"
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception:
+        tz = pytz.timezone("Europe/Moscow")
+
+    now_local = now_utc.astimezone(tz)
+    current_time = now_local.time()
+
+    if start <= end:
+        return start <= current_time <= end
+    else:
+        # Overnight window (e.g. 22:00 - 08:00)
+        return current_time >= start or current_time <= end
+
+
 async def process_pending_triggers(db: AsyncSession) -> None:
     """Process due follow-up triggers."""
     now = datetime.now(timezone.utc)
@@ -131,6 +161,18 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         if not tenant_settings or not tenant_settings.followup_enabled:
             trig.status = "cancelled"
             await db.commit()
+            continue
+
+        # Respect business hours — skip and keep pending until within hours
+        if not _is_within_business_hours(now, tenant_settings):
+            logger.info(
+                "followup_outside_business_hours",
+                trigger_id=trig.id,
+                tenant_id=dialog.tenant_id,
+                timezone=tenant_settings.timezone,
+                start=str(tenant_settings.smart_delay_start),
+                end=str(tenant_settings.smart_delay_end),
+            )
             continue
 
         cfg = _get_trigger_config(tenant_settings.followup_scenarios, trig.trigger_type)

@@ -175,6 +175,9 @@ export default function SettingsPage() {
         target_action: settings.target_action || null,
         faq_items: faqItems.length > 0 ? faqItems : null,
         debounce_seconds: settings.debounce_seconds ?? 10,
+        smart_delay_start: settings.smart_delay_start || null,
+        smart_delay_end: settings.smart_delay_end || null,
+        timezone: settings.timezone || "Europe/Moscow",
       });
       setSettings(res);
       setSaved(true);
@@ -642,6 +645,30 @@ export default function SettingsPage() {
                     onChange={(e) => setSettings((s) => ({ ...s, debounce_seconds: parseInt(e.target.value) || 10 }))}
                     className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-text mb-1.5">
+                    Время отправки follow-up сообщений
+                  </label>
+                  <p className="text-xs text-muted mb-2">
+                    Фоллоу-апы будут отправляться только в это время (timezone: {settings.timezone || "Europe/Moscow"})
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="time"
+                      value={settings.smart_delay_start || "09:00"}
+                      onChange={(e) => setSettings((s) => ({ ...s, smart_delay_start: e.target.value }))}
+                      className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    />
+                    <span className="text-muted">—</span>
+                    <input
+                      type="time"
+                      value={settings.smart_delay_end || "21:00"}
+                      onChange={(e) => setSettings((s) => ({ ...s, smart_delay_end: e.target.value }))}
+                      className="bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4 mt-5">
