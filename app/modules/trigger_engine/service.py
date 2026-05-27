@@ -204,8 +204,19 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                 continue
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+        if not dialog.channel_id:
+            logger.warning("followup_no_channel_id", dialog_id=dialog.id)
+            trig.status = "failed"
+            await db.commit()
+            continue
         try:
-            await wazzup_client.send_message(dialog.channel, dialog.external_user_id, text_plain, api_key=wazzup_key)
+            await wazzup_client.send_message(
+                dialog.channel_id,
+                dialog.external_user_id,
+                text_plain,
+                chat_type=dialog.channel,
+                api_key=wazzup_key,
+            )
             trig.status = "sent"
             trig.sent_at = now
             await db.commit()

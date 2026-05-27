@@ -118,6 +118,7 @@ class Dialog(Base):
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
     channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    channel_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     external_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

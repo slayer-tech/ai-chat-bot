@@ -34,6 +34,7 @@ async def ensure_dialog(
         dialog = Dialog(
             tenant_id=tenant_id,
             channel=msg.chatType,
+            channel_id=msg.channelId,
             external_user_id=msg.chatId,
             phone=msg.contact.phone if msg.contact else None,
             name=msg.contact.name if msg.contact else None,
