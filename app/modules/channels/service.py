@@ -233,12 +233,28 @@ async def process_dialog_response(
     # Combine messages (oldest first) or use the latest one
     texts = [m.content_original or "" for m in reversed(recent_messages)]
     combined_text = " ".join(t.strip() for t in texts if t.strip())
-    if not combined_text:
-        return {"status": "empty_text", "dialog_id": dialog_id}
 
     # Fetch tenant settings for feature toggles
     from app.modules.tenants.service import get_tenant_settings
     tenant_settings = await get_tenant_settings(db, tenant_id)
+    wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+
+    # If only voice messages that couldn't be transcribed — send fallback
+    if not combined_text:
+        has_voice_only = any(m.has_voice for m in recent_messages)
+        if has_voice_only and wazzup_key:
+            try:
+                await send_outbound(
+                    tenant_id,
+                    channel_id,
+                    chat_id,
+                    "Извините, немного не понял что вы говорите, можете пожалуйста написать?",
+                    chat_type,
+                    wazzup_key,
+                )
+            except Exception as exc:
+                logger.error("voice_fallback_send_failed", error=str(exc))
+        return {"status": "empty_text", "dialog_id": dialog_id}
 
     # Anti-spam check
     from app.modules.anti_spam_flood.service import check_flood
@@ -263,9 +279,6 @@ async def process_dialog_response(
         handoff_needed = await check_handoff_needed(db, tenant_id, chat_id, intent, combined_text)
         if handoff_needed:
             return {"status": "handoff", "dialog_id": dialog_id}
-
-    # Fetch tenant-specific Wazzup API key (early, we already have tenant_settings from anti-spam)
-    wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
 
     # Generate response
     from app.modules.llm_router.service import generate_response

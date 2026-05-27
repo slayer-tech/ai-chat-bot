@@ -102,32 +102,15 @@ async def wazzup_webhook(
 
         saved = await save_inbound_message(db, tenant_id, msg)
         if saved.get("status") == "saved":
-            # If voice message couldn't be transcribed, send a friendly fallback
-            if msg.type == "audio" and not saved.get("text"):
-                wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
-                if wazzup_key:
-                    from app.clients.wazzup_client import wazzup_client
-                    try:
-                        await wazzup_client.send_message(
-                            channel_id=channel_id,
-                            chat_id=chat_id,
-                            text="Извините, немного не понял что вы говорите, можете пожалуйста написать?",
-                            chat_type=chat_type,
-                            api_key=wazzup_key,
-                        )
-                    except Exception as exc:
-                        logger.warning("voice_fallback_send_failed", error=str(exc))
-                results.append({"status": "voice_unrecognized", "dialog_id": saved["dialog_id"]})
-            else:
-                await schedule_delayed_processing(
-                    tenant_id=tenant_id,
-                    dialog_id=saved["dialog_id"],
-                    chat_id=saved["chat_id"],
-                    chat_type=saved["chat_type"],
-                    channel_id=saved["channel_id"],
-                    debounce_seconds=debounce_seconds,
-                )
-                results.append({"status": "debounced", "dialog_id": saved["dialog_id"]})
+            await schedule_delayed_processing(
+                tenant_id=tenant_id,
+                dialog_id=saved["dialog_id"],
+                chat_id=saved["chat_id"],
+                chat_type=saved["chat_type"],
+                channel_id=saved["channel_id"],
+                debounce_seconds=debounce_seconds,
+            )
+            results.append({"status": "debounced", "dialog_id": saved["dialog_id"]})
         else:
             results.append(saved)
 
