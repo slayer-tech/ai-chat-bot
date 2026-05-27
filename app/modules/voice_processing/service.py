@@ -1,5 +1,6 @@
 """Voice message processing via Yandex SpeechKit."""
 
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -12,20 +13,31 @@ logger = structlog.get_logger()
 VOICE_TMP_DIR = Path("/tmp/ai_bot_voice")
 
 
-def _detect_audio_format(audio: bytes) -> tuple[str, int]:
-    """Detect audio format and sample rate from magic bytes.
+def _is_ogg_opus(audio: bytes) -> bool:
+    """Check if audio is already OGG Opus."""
+    return audio[:4] == b"OggS"
 
-    Returns:
-        (format, sample_rate_hertz)
-    """
-    if audio[:4] == b"OggS":
-        return "oggopus", 48000
-    if audio[:3] == b"ID3" or (audio[:1] == b"\xff" and audio[1:2] in (b"\xfb", b"\xf3", b"\xf2")):
-        return "mp3", 44100
-    if audio[:4] == b"RIFF":
-        return "lpcm", 16000
-    # Default fallback
-    return "oggopus", 48000
+
+def _convert_to_ogg_opus(audio: bytes) -> bytes:
+    """Convert any audio to OGG Opus using ffmpeg."""
+    proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-i", "pipe:0",
+            "-c:a", "libopus",
+            "-b:a", "24k",
+            "-ar", "48000",
+            "-f", "ogg",
+            "pipe:1",
+        ],
+        input=audio,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[:200]
+        logger.error("ffmpeg_convert_failed", stderr=stderr)
+        raise RuntimeError(f"ffmpeg failed: {stderr}")
+    return proc.stdout
 
 
 async def download_voice(url: str) -> bytes:
@@ -46,9 +58,11 @@ async def process_voice_if_needed(voice_url: Optional[str]) -> str:
         return ""
     try:
         audio = await download_voice(voice_url)
-        format_, sample_rate = _detect_audio_format(audio)
-        logger.info("voice_format_detected", format=format_, sample_rate=sample_rate, size=len(audio))
-        text = await speechkit_client.recognize(audio, format_=format_, sample_rate_hertz=sample_rate)
+        if not _is_ogg_opus(audio):
+            logger.info("voice_converting_to_ogg_opus", original_size=len(audio))
+            audio = _convert_to_ogg_opus(audio)
+            logger.info("voice_converted", new_size=len(audio))
+        text = await speechkit_client.recognize(audio)
         logger.info("voice_transcribed", url=voice_url, chars=len(text))
         return text
     except Exception as exc:
