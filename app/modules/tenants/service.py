@@ -123,8 +123,12 @@ async def update_tenant_settings(
     if not settings:
         settings = TenantSettings(tenant_id=tenant_id)
         db.add(settings)
+    from datetime import datetime as _datetime
+
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
+        if key in ("smart_delay_start", "smart_delay_end") and isinstance(value, str):
+            value = _datetime.strptime(value, "%H:%M").time()
         setattr(settings, key, value)
     await db.commit()
     await db.refresh(settings)
