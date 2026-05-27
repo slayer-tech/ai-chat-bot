@@ -91,6 +91,7 @@ class TenantSettingsSchema(BaseModel):
     wazzup_api_key: Optional[str] = None
     target_action: Optional[str] = None
     faq_items: Optional[list] = None
+    debounce_seconds: int = 10
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -112,6 +113,7 @@ class TenantSettingsUpdate(BaseModel):
     wazzup_api_key: Optional[str] = None
     target_action: Optional[str] = None
     faq_items: Optional[list] = None
+    debounce_seconds: Optional[int] = None
 
 
 class TenantListItem(BaseModel):

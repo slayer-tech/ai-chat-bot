@@ -88,6 +88,7 @@ class TenantSettings(Base):
     wazzup_api_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     target_action: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     faq_items: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    debounce_seconds: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
 
 
 class TenantAdmin(Base):

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.modules.channels.service import save_inbound_message
+from app.modules.tenants.service import get_tenant_settings
 from app.tasks.message_processor import schedule_delayed_processing
 
 logger = structlog.get_logger()
@@ -48,6 +49,10 @@ async def wazzup_webhook(
     messages = data.get("messages", [])
     if not isinstance(messages, list):
         return {"status": "ok", "processed": 0}
+
+    # Load tenant settings for debounce configuration
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    debounce_seconds = tenant_settings.debounce_seconds if tenant_settings else 10
 
     results = []
 
@@ -103,6 +108,7 @@ async def wazzup_webhook(
                 chat_id=saved["chat_id"],
                 chat_type=saved["chat_type"],
                 channel_id=saved["channel_id"],
+                debounce_seconds=debounce_seconds,
             )
             results.append({"status": "debounced", "dialog_id": saved["dialog_id"]})
         else:

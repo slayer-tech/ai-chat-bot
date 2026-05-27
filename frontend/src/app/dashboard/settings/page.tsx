@@ -174,6 +174,7 @@ export default function SettingsPage() {
         wazzup_api_key: settings.wazzup_api_key || null,
         target_action: settings.target_action || null,
         faq_items: faqItems.length > 0 ? faqItems : null,
+        debounce_seconds: settings.debounce_seconds ?? 10,
       });
       setSettings(res);
       setSaved(true);
@@ -625,6 +626,23 @@ export default function SettingsPage() {
                   checked={settings.handoff_enabled ?? true}
                   onChange={(v) => setSettings((s) => ({ ...s, handoff_enabled: v }))}
                 />
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-text mb-1.5">
+                    Задержка перед ответом (секунды)
+                  </label>
+                  <p className="text-xs text-muted mb-2">
+                    Если клиент пришлёт несколько сообщений подряд — бот подождёт это время и ответит на все сразу
+                  </p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={settings.debounce_seconds ?? 10}
+                    onChange={(e) => setSettings((s) => ({ ...s, debounce_seconds: parseInt(e.target.value) || 10 }))}
+                    className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
 
                 <div className="flex items-center gap-4 mt-5">
                   <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
