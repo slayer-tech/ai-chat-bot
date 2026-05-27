@@ -111,7 +111,7 @@ async def wazzup_webhook(
                         await wazzup_client.send_message(
                             channel_id=channel_id,
                             chat_id=chat_id,
-                            text="Не удалось распознать голосовое сообщение 😔 Пожалуйста, напишите текстом.",
+                            text="Извините, немного не понял что вы говорите, можете пожалуйста написать?",
                             chat_type=chat_type,
                             api_key=wazzup_key,
                         )
