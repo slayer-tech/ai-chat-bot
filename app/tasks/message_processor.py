@@ -3,11 +3,11 @@
 import asyncio
 import uuid
 
-from asgiref.sync import async_to_sync
 from celery import shared_task
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.clients.redis_client import get_redis
-from app.db.session import AsyncSessionLocal
+from app.core.config import settings
 from app.modules.channels.service import process_dialog_response
 
 
@@ -20,12 +20,24 @@ async def _process_delayed_message_async(
     task_id: str,
 ) -> dict:
     """Async implementation of delayed message processing."""
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        future=True,
+    )
+    AsyncSessionLocal = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+
     redis = await get_redis()
     redis_key = f"pending_task:{tenant_id}:{chat_id}"
     current_task = await redis.get(redis_key)
 
     if current_task != task_id:
-        # A newer message arrived; abort this task
+        await engine.dispose()
         return {"status": "superseded", "reason": "newer_message_arrived"}
 
     async with AsyncSessionLocal() as db:
@@ -38,8 +50,8 @@ async def _process_delayed_message_async(
             channel_id=channel_id,
         )
 
-    # Clean up redis key after processing
     await redis.delete(redis_key)
+    await engine.dispose()
     return result
 
 
@@ -56,8 +68,10 @@ def process_delayed_message(
 
     Only runs if no newer message arrived for this dialog within the debounce window.
     """
-    return async_to_sync(_process_delayed_message_async)(
-        tenant_id, dialog_id, chat_id, chat_type, channel_id, task_id
+    return asyncio.run(
+        _process_delayed_message_async(
+            tenant_id, dialog_id, chat_id, chat_type, channel_id, task_id
+        )
     )
 
 
