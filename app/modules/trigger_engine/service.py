@@ -95,8 +95,8 @@ async def schedule_trigger(
     if not cfg["enabled"]:
         return None
 
-    # Cancel old pending triggers for this dialog so we never send duplicates
-    await _cancel_pending_triggers(db, dialog_id)
+    # Cancel old pending triggers of the same type so we never send duplicates
+    await _cancel_pending_triggers(db, dialog_id, trigger_type)
 
     delay = cfg["delay_minutes"]
     at = scheduled_at or (datetime.now(timezone.utc) + timedelta(minutes=delay))
