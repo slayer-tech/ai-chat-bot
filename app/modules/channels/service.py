@@ -283,6 +283,10 @@ async def save_inbound_message(
     )
     await db.commit()
 
+    # Cancel any pending follow-ups because the user just replied
+    from app.modules.trigger_engine.service import _cancel_pending_triggers
+    await _cancel_pending_triggers(db, dialog_id)
+
     return {
         "status": "saved",
         "dialog_id": dialog_id,

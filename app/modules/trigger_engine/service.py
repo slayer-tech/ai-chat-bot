@@ -207,6 +207,29 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             await db.commit()
             continue
 
+        # Fail-safe: if user replied after the trigger was scheduled, cancel it
+        last_user_msg = await db.scalar(
+            select(Message)
+            .where(Message.dialog_id == dialog.id, Message.role == "user")
+            .order_by(Message.created_at.desc())
+        )
+        last_bot_msg = await db.scalar(
+            select(Message)
+            .where(Message.dialog_id == dialog.id, Message.role == "assistant")
+            .order_by(Message.created_at.desc())
+        )
+        if last_user_msg and last_bot_msg and last_user_msg.created_at > last_bot_msg.created_at:
+            logger.info(
+                "followup_cancelled_user_replied",
+                trigger_id=trig.id,
+                dialog_id=dialog.id,
+                last_user_at=last_user_msg.created_at.isoformat(),
+                last_bot_at=last_bot_msg.created_at.isoformat(),
+            )
+            trig.status = "cancelled"
+            await db.commit()
+            continue
+
         # Use custom text if provided, otherwise generate with YandexGPT
         text_plain = cfg.get("text", "").strip()
         if not text_plain:
