@@ -103,6 +103,8 @@ async def _sync_cross_channel_context(
     if old_dialog.status in ("handoff", "flood", "closed"):
         dialog.status = "handoff"
         await db.commit()
+        from app.modules.trigger_engine.service import _cancel_pending_triggers
+        await _cancel_pending_triggers(db, dialog.id)
         logger.info(
             "cross_channel_handoff",
             old_channel=old_dialog.channel,
@@ -200,6 +202,8 @@ async def save_inbound_message(
                 dialog.message_count += 1
                 dialog.last_message_at = datetime.now(timezone.utc)
                 await db.commit()
+                from app.modules.trigger_engine.service import _cancel_pending_triggers
+                await _cancel_pending_triggers(db, dialog_id)
                 # Still save the message so manager sees it
                 from app.modules.conversation_memory.service import add_message
                 await add_message(
@@ -245,6 +249,8 @@ async def save_inbound_message(
             )
             dialog.status = "handoff"
             await db.commit()
+            from app.modules.trigger_engine.service import _cancel_pending_triggers
+            await _cancel_pending_triggers(db, dialog_id)
             # Save user message before handoff
             from app.modules.intent_classifier.service import classify_intent
             intent, confidence = await classify_intent(text)
@@ -407,6 +413,8 @@ async def process_dialog_response(
         if tenant_settings and tenant_settings.handoff_enabled:
             dialog.status = "handoff"
             await db.commit()
+            from app.modules.trigger_engine.service import _cancel_pending_triggers
+            await _cancel_pending_triggers(db, dialog_id)
             logger.info("rag_handoff_low_confidence", dialog_id=dialog_id, tenant_id=tenant_id)
             return {"status": "handoff", "dialog_id": dialog_id}
         else:
@@ -421,6 +429,8 @@ async def process_dialog_response(
         if tenant_settings and tenant_settings.handoff_enabled:
             dialog.status = "handoff"
             await db.commit()
+            from app.modules.trigger_engine.service import _cancel_pending_triggers
+            await _cancel_pending_triggers(db, dialog_id)
             logger.info("llm_self_assessed_uncertainty_handoff", dialog_id=dialog_id, tenant_id=tenant_id)
             return {"status": "handoff", "dialog_id": dialog_id}
         else:
@@ -445,21 +455,6 @@ async def process_dialog_response(
         await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type, wazzup_key)
     except Exception as exc:
         logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
-
-    # Goal detection: if target action is set, check if reached
-    if tenant_settings and tenant_settings.target_action:
-        from app.modules.conversation_memory.service import build_context
-        from app.modules.goal_detector.service import check_goal_reached
-        conv_for_goal = await build_context(db, dialog_id)
-        goal_reached = await check_goal_reached(tenant_settings.target_action, conv_for_goal)
-        if goal_reached:
-            # Mark dialog as handoff — manager takes over
-            dialog_obj = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
-            if dialog_obj:
-                dialog_obj.status = "handoff"
-                await db.commit()
-            logger.info("goal_reached_handoff", tenant_id=tenant_id, dialog_id=dialog_id, target=tenant_settings.target_action)
-            return {"status": "goal_reached", "dialog_id": dialog_id}
 
     # Schedule follow-up triggers after bot response
     from app.modules.trigger_engine.service import schedule_trigger

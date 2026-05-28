@@ -100,7 +100,7 @@ async def build_context(db: AsyncSession, dialog_id: int) -> list[dict[str, str]
     """Build conversation context: summary + last 5 messages."""
     dialog = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
     summary = dialog.summary if dialog else ""
-    messages = await get_recent_messages(db, dialog_id, limit=5)
+    messages = await get_recent_messages(db, dialog_id, limit=12)
     context: list[dict[str, str]] = []
     if summary:
         context.append({"role": "system", "content": f"Summary of conversation so far: {summary}"})

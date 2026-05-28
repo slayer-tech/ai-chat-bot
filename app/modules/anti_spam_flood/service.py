@@ -130,10 +130,14 @@ async def _handle_flood(
     dialog: Dialog,
     settings: TenantSettings,
 ) -> None:
-    """Mark dialog as flood and notify CRM."""
+    """Mark dialog as flood and notify CRM, cancel follow-ups."""
     dialog.status = "flood"
     dialog.is_flood_suspected = True
     await db.commit()
+
+    # Cancel any pending follow-ups — dialog is blocked
+    from app.modules.trigger_engine.service import _cancel_pending_triggers
+    await _cancel_pending_triggers(db, dialog.id)
 
     # CRM notify — COMMENTED OUT FOR TESTING (no CRM connected yet)
     # if settings.crm_type and dialog.crm_lead_id:

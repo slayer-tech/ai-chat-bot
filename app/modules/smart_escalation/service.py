@@ -131,10 +131,14 @@ async def _is_stalled(db: AsyncSession, dialog_id: int) -> bool:
 
 
 async def _do_handoff(db: AsyncSession, dialog: Dialog, reason: str) -> None:
-    """Execute handoff: update dialog, create CRM lead/task/note."""
+    """Execute handoff: update dialog, create CRM lead/task/note, cancel follow-ups."""
     dialog.status = "handoff"
     dialog.is_stalled = True
     await db.commit()
+
+    # Cancel any pending follow-ups — manager takes over
+    from app.modules.trigger_engine.service import _cancel_pending_triggers
+    await _cancel_pending_triggers(db, dialog.id)
 
     # Summarize
     summary = await summarize_dialog(db, dialog.id)
