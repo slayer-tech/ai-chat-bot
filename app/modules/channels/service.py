@@ -269,7 +269,7 @@ async def save_inbound_message(
 
     # Add to memory
     from app.modules.conversation_memory.service import add_message
-    await add_message(
+    msg_obj = await add_message(
         db,
         tenant_id=tenant_id,
         dialog_id=dialog_id,
@@ -282,6 +282,15 @@ async def save_inbound_message(
         voice_url=voice_url,
     )
     await db.commit()
+
+    logger.info(
+        "inbound_message_saved",
+        dialog_id=dialog_id,
+        message_id=msg_obj.id,
+        created_at=msg_obj.created_at.isoformat() if msg_obj.created_at else None,
+        role=msg_obj.role,
+        text_preview=text[:50] if text else None,
+    )
 
     # Cancel any pending follow-ups because the user just replied
     from app.modules.trigger_engine.service import _cancel_pending_triggers
@@ -326,6 +335,15 @@ async def process_dialog_response(
         .order_by(desc(Message.created_at))
     )
     recent_messages = list(result.scalars().all())
+    logger.info(
+        "process_dialog_recent_messages",
+        dialog_id=dialog_id,
+        since=since.isoformat(),
+        now=datetime.now(timezone.utc).isoformat(),
+        message_count=len(recent_messages),
+        message_ids=[m.id for m in recent_messages],
+        message_created_ats=[m.created_at.isoformat() for m in recent_messages] if recent_messages else [],
+    )
     if not recent_messages:
         return {"status": "no_messages", "dialog_id": dialog_id}
 
