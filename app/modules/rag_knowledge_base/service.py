@@ -1,6 +1,6 @@
 """RAG knowledge base with Yandex Embeddings (256-dim) + pgvector."""
 
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
 from sqlalchemy import select
@@ -18,18 +18,23 @@ async def search_knowledge(
     query: str,
     top_k: int = 3,
 ) -> list[str]:
-    """Search knowledge base chunks by semantic similarity using Yandex Embeddings.
+    """Search knowledge base chunks by semantic similarity using Yandex Embeddings."""
+    results = await search_knowledge_with_scores(db, tenant_id, query, top_k)
+    return [r["content"] for r in results]
 
-    Args:
-        db: Database session.
-        tenant_id: Tenant filter.
-        query: Query text.
-        top_k: Number of chunks to return.
+
+async def search_knowledge_with_scores(
+    db: AsyncSession,
+    tenant_id: int,
+    query: str,
+    top_k: int = 3,
+) -> list[dict[str, Any]]:
+    """Search knowledge base chunks with cosine distance scores.
 
     Returns:
-        List of chunk contents.
+        List of dicts: [{"content": str, "distance": float}, ...]
+        distance is cosine distance (0 = identical, 1 = completely different)
     """
-    # Get query embedding via Yandex text-search-query
     try:
         embeddings = await yandex_embeddings_client.embed([query], model_type="text-search-query")
         vector = embeddings[0]
@@ -37,8 +42,13 @@ async def search_knowledge(
         logger.error("yandex_query_embedding_failed", error=str(exc))
         return []
 
+    # pgvector cosine_distance + content
+    from sqlalchemy import func
     result = await db.execute(
-        select(KnowledgeBaseChunk)
+        select(
+            KnowledgeBaseChunk.content,
+            KnowledgeBaseChunk.embedding.cosine_distance(vector).label("distance"),
+        )
         .where(
             KnowledgeBaseChunk.tenant_id == tenant_id,
             KnowledgeBaseChunk.embedding.is_not(None),
@@ -46,8 +56,8 @@ async def search_knowledge(
         .order_by(KnowledgeBaseChunk.embedding.cosine_distance(vector))
         .limit(top_k)
     )
-    chunks = result.scalars().all()
-    return [c.content for c in chunks]
+    rows = result.all()
+    return [{"content": row.content, "distance": float(row.distance)} for row in rows]
 
 
 async def add_document(

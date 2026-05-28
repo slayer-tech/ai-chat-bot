@@ -10,9 +10,12 @@ from app.clients.yandex_gpt import yandex_gpt_client
 from app.core.config import settings as app_settings
 from app.db.models import Dialog
 from app.modules.conversation_memory.service import build_context
-from app.modules.rag_knowledge_base.service import search_knowledge
+from app.modules.rag_knowledge_base.service import search_knowledge_with_scores
 
 logger = structlog.get_logger()
+
+# Cosine distance threshold: lower = more similar. > 0.35 = low confidence.
+RAG_CONFIDENCE_THRESHOLD = 0.35
 
 
 async def generate_response(
@@ -20,17 +23,19 @@ async def generate_response(
     tenant_id: int,
     external_user_id: str,
     current_message: str,
-) -> str:
-    """Generate a bot response using GPT-4o with RAG + memory.
+    require_confidence: bool = True,
+) -> Optional[str]:
+    """Generate a bot response using GPT-4o with RAG + memory + sales script.
 
     Args:
         db: Database session.
         tenant_id: Tenant ID.
         external_user_id: User identifier.
         current_message: Tokenized current message.
+        require_confidence: If True and no relevant RAG found, returns None (handoff/fallback).
 
     Returns:
-        Generated response text (tokenized).
+        Generated response text, or None if confidence too low and require_confidence=True.
     """
     from sqlalchemy import select
 
@@ -42,7 +47,7 @@ async def generate_response(
     )
     dialog_id = dialog.id if dialog else 0
 
-    # Fetch system prompt from tenant settings
+    # Fetch tenant settings
     from app.modules.tenants.service import get_tenant_settings
 
     settings_obj = await get_tenant_settings(db, tenant_id)
@@ -53,7 +58,7 @@ async def generate_response(
             "Answer concisely, professionally, and in Russian."
         )
 
-    # FAQ context (if no RAG or as supplement)
+    # FAQ context
     faq_text = ""
     if settings_obj and settings_obj.faq_items:
         faq_lines = []
@@ -64,9 +69,25 @@ async def generate_response(
                 faq_lines.append(f"В: {q}\nО: {a}")
         faq_text = "\n\n".join(faq_lines)
 
-    # RAG context
-    rag_chunks = await search_knowledge(db, tenant_id, current_message)
-    rag_text = "\n".join(rag_chunks) if rag_chunks else ""
+    # RAG with confidence scores
+    rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=3)
+    good_chunks = [r for r in rag_results if r["distance"] < RAG_CONFIDENCE_THRESHOLD]
+    rag_text = "\n".join(r["content"] for r in good_chunks)
+
+    # Check confidence if required
+    if require_confidence and not good_chunks and rag_results:
+        logger.info(
+            "rag_low_confidence",
+            tenant_id=tenant_id,
+            dialog_id=dialog_id,
+            query=current_message[:50],
+            min_distance=min(r["distance"] for r in rag_results),
+        )
+        return None
+
+    # Sales script context
+    sales_script = settings_obj.sales_script_text if settings_obj else ""
+    sales_script_snippet = sales_script[:6000] if sales_script else ""
 
     # Conversation context
     conv_context = await build_context(db, dialog_id)
@@ -76,13 +97,31 @@ async def generate_response(
         logger.warning("generate_response_empty_message", dialog_id=dialog_id, tenant_id=tenant_id)
         return "Извините, я не получил текст сообщения. Можете повторить?"
 
+    # Build objection-aware system prompt
+    full_system = system_prompt.strip()
+    if sales_script_snippet:
+        full_system += (
+            "\n\n[СКРИПТ ПРОДАЖ]\n"
+            f"{sales_script_snippet}\n\n"
+            "Следуй скрипту продаж, но адаптируй под диалог. "
+            "Если клиент выражает возражения (дорого, подумаю, не нужно, сравниваю с конкурентами) — "
+            "отрабатывай их как опытный продавец: сочувствуй, задавай уточняющие вопросы, "
+            "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
+        )
+    else:
+        full_system += (
+            "\n\nЕсли клиент выражает возражения (дорого, подумаю, не нужно, сравниваю с конкурентами) — "
+            "отрабатывай их как опытный продавец: сочувствуй, задавай уточняющие вопросы, "
+            "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
+        )
+
     messages: list[dict[str, str]] = []
-    if system_prompt and system_prompt.strip():
-        messages.append({"role": "system", "content": system_prompt})
+    if full_system:
+        messages.append({"role": "system", "content": full_system})
     if faq_text and faq_text.strip():
         messages.append({"role": "system", "content": f"Частые вопросы и ответы:\n{faq_text}"})
     if rag_text and rag_text.strip():
-        messages.append({"role": "system", "content": f"Relevant info:\n{rag_text}"})
+        messages.append({"role": "system", "content": f"Релевантная информация из базы знаний:\n{rag_text}"})
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 

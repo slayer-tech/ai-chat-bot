@@ -398,9 +398,22 @@ async def process_dialog_response(
         if handoff_needed:
             return {"status": "handoff", "dialog_id": dialog_id}
 
-    # Generate response
+    # Generate response (with RAG confidence check)
     from app.modules.llm_router.service import generate_response
-    response_text = await generate_response(db, tenant_id, chat_id, combined_text)
+    response_text = await generate_response(db, tenant_id, chat_id, combined_text, require_confidence=True)
+
+    # Low confidence / no relevant knowledge — handoff or fallback
+    if response_text is None:
+        if tenant_settings and tenant_settings.handoff_enabled:
+            dialog.status = "handoff"
+            await db.commit()
+            logger.info("rag_handoff_low_confidence", dialog_id=dialog_id, tenant_id=tenant_id)
+            return {"status": "handoff", "dialog_id": dialog_id}
+        else:
+            response_text = (
+                "Извините, я не уверен в точном ответе на этот вопрос. "
+                "Могу уточнить у коллеги и вернуться к вам."
+            )
 
     # Save bot response to memory
     from app.modules.conversation_memory.service import add_message

@@ -180,6 +180,7 @@ export default function SettingsPage() {
         timezone: settings.timezone || "Europe/Moscow",
         voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
         dialog_message_limit: settings.dialog_message_limit || null,
+        sales_script_text: settings.sales_script_text || null,
       });
       setSettings(res);
       setSaved(true);
@@ -469,6 +470,26 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4 mt-5">
                   <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
                     {saving ? "Сохранение..." : "Сохранить FAQ"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
+              </div>
+
+              {/* ─── Sales Script ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Скрипт продаж</h2>
+                <p className="text-xs text-muted mb-4">
+                  Вставь сюда полный скрипт или инструкции для продавца. Бот будет использовать их как источник знаний — если не найдёт ответ в скрипте, переведёт на менеджера.
+                </p>
+                <textarea
+                  value={settings.sales_script_text || ""}
+                  onChange={(e) => setSettings((s) => ({ ...s, sales_script_text: e.target.value }))}
+                  placeholder={"1. Приветствие и представление...\n2. Выяснение потребностей...\n3. Работа с возражениями: дорого — ...\n4. Закрытие сделки — ..."}
+                  className="w-full h-64 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-y font-mono leading-relaxed"
+                />
+                <div className="flex items-center gap-4 mt-4">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить скрипт"}
                   </button>
                   {saved && <span className="text-sm text-green-400">Сохранено!</span>}
                 </div>
