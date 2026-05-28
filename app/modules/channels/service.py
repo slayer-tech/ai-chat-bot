@@ -415,6 +415,20 @@ async def process_dialog_response(
                 "Могу уточнить у коллеги и вернуться к вам."
             )
 
+    # LLM self-evaluated uncertainty — handoff if enabled
+    if response_text.startswith("[UNSURE]"):
+        response_text = response_text.replace("[UNSURE]", "").strip()
+        if tenant_settings and tenant_settings.handoff_enabled:
+            dialog.status = "handoff"
+            await db.commit()
+            logger.info("llm_self_assessed_uncertainty_handoff", dialog_id=dialog_id, tenant_id=tenant_id)
+            return {"status": "handoff", "dialog_id": dialog_id}
+        else:
+            response_text = (
+                "Извините, я не уверен в точном ответе на этот вопрос. "
+                "Могу уточнить у коллеги и вернуться к вам."
+            )
+
     # Save bot response to memory
     from app.modules.conversation_memory.service import add_message
     await add_message(
