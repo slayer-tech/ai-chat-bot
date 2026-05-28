@@ -21,36 +21,42 @@ DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
         "delay_minutes": 30,
         "label": "Не ответил на приветствие",
         "text": "",
+        "fallback_text": "Привет! Вы там? Есть вопросы, на которые могу ответить?",
     },
     "no_answer_2h": {
         "enabled": True,
         "delay_minutes": 120,
         "label": "Не ответил на вопрос 2 часа",
         "text": "",
+        "fallback_text": "Добрый день! Подскажите, остались ли у вас вопросы? Рядом, если что 😊",
     },
     "no_answer_24h": {
         "enabled": True,
         "delay_minutes": 1440,
         "label": "Диалог завис на сутки",
         "text": "",
+        "fallback_text": "Здравствуйте! Не упустите возможность — я рядом, чтобы помочь.",
     },
     "thinking_3d": {
         "enabled": False,
         "delay_minutes": 4320,
         "label": "Сделка думает 3 дня",
         "text": "",
+        "fallback_text": "Привет! Как думаете, есть ли смысл обсудить детали?",
     },
     "post_meeting_2h": {
         "enabled": False,
         "delay_minutes": 120,
         "label": "Фоллоу-ап после встречи",
         "text": "",
+        "fallback_text": "Было приятно пообщаться! Если появятся вопросы — пишите.",
     },
     "abandoned_7d": {
         "enabled": False,
         "delay_minutes": 10080,
         "label": "Реактивация спустя неделю",
         "text": "",
+        "fallback_text": "Давно не общались! Возможно, пригодится наша помощь?",
     },
 }
 
@@ -65,6 +71,7 @@ def _get_trigger_config(scenarios: Optional[dict], trigger_type: str) -> dict[st
             "delay_minutes": cfg.get("delay_minutes", default.get("delay_minutes", 60)),
             "label": cfg.get("label", default.get("label", trigger_type)),
             "text": cfg.get("text", default.get("text", "")),
+            "fallback_text": cfg.get("fallback_text", default.get("fallback_text", "Добрый день! Подскажите, остались ли вопросы?")),
         }
     return DEFAULT_TRIGGERS.get(trigger_type, {"enabled": False, "delay_minutes": 60, "label": trigger_type, "text": ""})
 
@@ -248,9 +255,12 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                 text_plain = resp["choices"][0]["message"]["content"].strip()
             except Exception as exc:
                 logger.error("followup_generation_failed", trigger_id=trig.id, error=str(exc))
-                trig.status = "failed"
-                await db.commit()
-                continue
+                text_plain = ""
+
+        # Fallback if GPT returned empty or whitespace
+        if not text_plain:
+            text_plain = cfg.get("fallback_text", "Добрый день! Подскажите, остались ли вопросы?")
+            logger.info("followup_using_fallback", trigger_id=trig.id, dialog_id=dialog.id)
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
         if not dialog.channel_id:
