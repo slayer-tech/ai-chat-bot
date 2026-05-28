@@ -248,11 +248,15 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             )
             try:
                 resp = await yandex_gpt_client.chat_completion(
-                    messages=[{"role": "system", "content": prompt}],
+                    messages=[
+                        {"role": "system", "content": "Ты вежливый русскоязычный sales-ассистент. Пиши коротко, дружелюбно, не более 200 символов."},
+                        {"role": "user", "content": prompt},
+                    ],
                     temperature=0.7,
                     max_tokens=150,
                 )
                 text_plain = resp["choices"][0]["message"]["content"].strip()
+                logger.info("followup_generated", trigger_id=trig.id, dialog_id=dialog.id, text_preview=text_plain[:50])
             except Exception as exc:
                 logger.error("followup_generation_failed", trigger_id=trig.id, error=str(exc))
                 text_plain = ""
