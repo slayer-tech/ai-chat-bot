@@ -74,20 +74,32 @@ async def generate_response(
     good_chunks = [r for r in rag_results if r["distance"] < RAG_CONFIDENCE_THRESHOLD]
     rag_text = "\n".join(r["content"] for r in good_chunks)
 
-    # Check confidence if required
-    if require_confidence and not good_chunks and rag_results:
-        logger.info(
-            "rag_low_confidence",
-            tenant_id=tenant_id,
-            dialog_id=dialog_id,
-            query=current_message[:50],
-            min_distance=min(r["distance"] for r in rag_results),
-        )
-        return None
-
     # Sales script context
     sales_script = settings_obj.sales_script_text if settings_obj else ""
     sales_script_snippet = sales_script[:6000] if sales_script else ""
+
+    # Check confidence if required:
+    # Script and FAQ are primary knowledge sources — bot should answer based on them.
+    # RAG is supplementary. Handoff only when no script, no FAQ, and no confident RAG.
+    has_primary_source = bool(sales_script_snippet.strip()) or bool(faq_text.strip())
+    has_confident_rag = bool(good_chunks)
+    if require_confidence and not has_primary_source and not has_confident_rag:
+        if rag_results:
+            logger.info(
+                "rag_low_confidence",
+                tenant_id=tenant_id,
+                dialog_id=dialog_id,
+                query=current_message[:50],
+                min_distance=min(r["distance"] for r in rag_results),
+            )
+        else:
+            logger.info(
+                "no_knowledge_source",
+                tenant_id=tenant_id,
+                dialog_id=dialog_id,
+                query=current_message[:50],
+            )
+        return None
 
     # Conversation context
     conv_context = await build_context(db, dialog_id)
