@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import structlog
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.yandex_gpt import yandex_gpt_client
@@ -74,6 +74,25 @@ def get_default_scenarios() -> dict[str, dict[str, Any]]:
     return {k: dict(v) for k, v in DEFAULT_TRIGGERS.items()}
 
 
+async def _cancel_pending_triggers(
+    db: AsyncSession, dialog_id: int, trigger_type: Optional[str] = None
+) -> None:
+    """Cancel existing pending triggers for a dialog."""
+    stmt = (
+        update(FollowupTrigger)
+        .where(
+            FollowupTrigger.dialog_id == dialog_id,
+            FollowupTrigger.status == "pending",
+        )
+        .values(status="cancelled")
+        .execution_options(synchronize_session=False)
+    )
+    if trigger_type:
+        stmt = stmt.where(FollowupTrigger.trigger_type == trigger_type)
+    await db.execute(stmt)
+    await db.commit()
+
+
 async def schedule_trigger(
     db: AsyncSession,
     tenant_id: int,
@@ -82,10 +101,16 @@ async def schedule_trigger(
     scenarios: Optional[dict] = None,
     scheduled_at: Optional[datetime] = None,
 ) -> Optional[FollowupTrigger]:
-    """Schedule a follow-up trigger if enabled in tenant settings."""
+    """Schedule a follow-up trigger if enabled in tenant settings.
+
+    Cancels any existing pending triggers for the same dialog to avoid duplicates.
+    """
     cfg = _get_trigger_config(scenarios, trigger_type)
     if not cfg["enabled"]:
         return None
+
+    # Cancel old pending triggers for this dialog so we never send duplicates
+    await _cancel_pending_triggers(db, dialog_id)
 
     delay = cfg["delay_minutes"]
     at = scheduled_at or (datetime.now(timezone.utc) + timedelta(minutes=delay))
@@ -99,6 +124,7 @@ async def schedule_trigger(
     db.add(trigger)
     await db.commit()
     await db.refresh(trigger)
+    logger.info("trigger_scheduled", trigger_id=trigger.id, dialog_id=dialog_id, type=trigger_type, at=at.isoformat())
     return trigger
 
 
