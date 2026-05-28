@@ -134,6 +134,9 @@ export default function SettingsPage() {
   // FAQ state
   const [faqItems, setFaqItems] = useState<Array<{ question: string; answer: string }>>([]);
 
+  // Script stages state (stage + script per row)
+  const [scriptStages, setScriptStages] = useState<Array<{ stage: string; script: string }>>([]);
+
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
     if (!localToken) {
@@ -147,6 +150,14 @@ export default function SettingsPage() {
         setSettings(res);
         if (res.system_prompt) setGeneratedPrompt(res.system_prompt);
         if (res.faq_items) setFaqItems(res.faq_items);
+        // Initialize script stages from backend
+        if (res.script_stages && Array.isArray(res.script_stages)) {
+          setScriptStages(res.script_stages.map((s: string) => ({ stage: s, script: "" })));
+        } else if (res.sales_script_text) {
+          setScriptStages([{ stage: "Скрипт", script: res.sales_script_text }]);
+        } else {
+          setScriptStages([]);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -172,7 +183,6 @@ export default function SettingsPage() {
         anti_spam_enabled: settings.anti_spam_enabled ?? true,
         handoff_enabled: settings.handoff_enabled ?? true,
         wazzup_api_key: settings.wazzup_api_key || null,
-        target_action: settings.target_action || null,
         faq_items: faqItems.length > 0 ? faqItems : null,
         debounce_seconds: settings.debounce_seconds ?? 10,
         smart_delay_start: settings.smart_delay_start || null,
@@ -180,9 +190,10 @@ export default function SettingsPage() {
         timezone: settings.timezone || "Europe/Moscow",
         voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
         dialog_message_limit: settings.dialog_message_limit || null,
-        sales_script_text: settings.sales_script_text || null,
-        script_stages: settings.script_stages?.length > 0 ? settings.script_stages : null,
-        inactive_days_threshold: settings.inactive_days_threshold || null,
+        sales_script_text: scriptStages.length > 0
+          ? scriptStages.map((s) => `[${s.stage}]\n${s.script}`).join("\n\n")
+          : null,
+        script_stages: scriptStages.length > 0 ? scriptStages.map((s) => s.stage) : null,
       });
       setSettings(res);
       setSaved(true);
@@ -256,7 +267,7 @@ export default function SettingsPage() {
     }
     setGeneratingPrompt(true);
     try {
-      const res = await api.generatePrompt({ ...promptAnswers, target_action: settings.target_action || "" });
+      const res = await api.generatePrompt({ ...promptAnswers });
       setGeneratedPrompt(res.system_prompt);
       setSettings((s) => ({ ...s, system_prompt: res.system_prompt }));
     } catch (err: any) {
@@ -477,44 +488,67 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* ─── Sales Script ─── */}
+              {/* ─── Sales Script (Stages + Script table) ─── */}
               <div className="card p-6">
                 <h2 className="text-lg font-medium text-text mb-1">Скрипт продаж</h2>
                 <p className="text-xs text-muted mb-4">
-                  Вставь сюда полный скрипт или инструкции для продавца. Бот будет использовать их как источник знаний — если не найдёт ответ в скрипте, переведёт на менеджера.
+                  Добавь этапы и скрипт для каждого этапа. Бот ведёт клиента по порядку. Когда пройдёт последний этап — диалог уйдёт на менеджера.
                 </p>
-                <textarea
-                  value={settings.sales_script_text || ""}
-                  onChange={(e) => setSettings((s) => ({ ...s, sales_script_text: e.target.value }))}
-                  placeholder={"1. Приветствие и представление...\n2. Выяснение потребностей...\n3. Работа с возражениями: дорого — ...\n4. Закрытие сделки — ..."}
-                  className="w-full h-64 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-y font-mono leading-relaxed"
-                />
-                <div className="flex items-center gap-4 mt-4">
+                <div className="space-y-3">
+                  {scriptStages.map((item, idx) => (
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted">Этап</label>
+                        <input
+                          type="text"
+                          value={item.stage}
+                          onChange={(e) =>
+                            setScriptStages((items) =>
+                              items.map((it, i) => (i === idx ? { ...it, stage: e.target.value } : it))
+                            )
+                          }
+                          placeholder="Приветствие"
+                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted">Скрипт для этапа</label>
+                        <textarea
+                          value={item.script}
+                          onChange={(e) =>
+                            setScriptStages((items) =>
+                              items.map((it, i) => (i === idx ? { ...it, script: e.target.value } : it))
+                            )
+                          }
+                          placeholder="Здравствуйте! Я помогу подобрать..."
+                          rows={3}
+                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors resize-y"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={() => setScriptStages((items) => [...items, { stage: "", script: "" }])}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-white/[0.03] hover:text-text transition-colors"
+                  >
+                    + Добавить этап
+                  </button>
+                  {scriptStages.length > 0 && (
+                    <button
+                      onClick={() => setScriptStages((items) => items.slice(0, -1))}
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-accent hover:bg-accent-soft/30 transition-colors"
+                    >
+                      Удалить последний
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 mt-5">
                   <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
                     {saving ? "Сохранение..." : "Сохранить скрипт"}
-                  </button>
-                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
-                </div>
-              </div>
-
-              {/* ─── Script Stages ─── */}
-              <div className="card p-6">
-                <h2 className="text-lg font-medium text-text mb-1">Этапы скрипта</h2>
-                <p className="text-xs text-muted mb-4">
-                  Опиши этапы скрипта по порядку — бот будет следить за прогрессом. Когда клиент пройдёт последний этап — диалог уйдёт на менеджера. Каждый этап с новой строки.
-                </p>
-                <textarea
-                  value={(settings.script_stages || []).join("\n")}
-                  onChange={(e) => {
-                    const lines = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
-                    setSettings((s) => ({ ...s, script_stages: lines.length > 0 ? lines : null }));
-                  }}
-                  placeholder={"1. Приветствие\n2. Замеры / потребности\n3. Расчёт цены\n4. Оплата"}
-                  className="w-full h-40 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-y font-mono leading-relaxed"
-                />
-                <div className="flex items-center gap-4 mt-4">
-                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
-                    {saving ? "Сохранение..." : "Сохранить этапы"}
                   </button>
                   {saved && <span className="text-sm text-green-400">Сохранено!</span>}
                 </div>
@@ -533,18 +567,6 @@ export default function SettingsPage() {
                   checked={followupsEnabled}
                   onChange={setFollowupsEnabled}
                 />
-
-                <div className="mt-4">
-                  <label className="text-xs text-muted">Реактивация неактивных диалогов (дней)</label>
-                  <input
-                    type="number"
-                    value={settings.inactive_days_threshold || ""}
-                    onChange={(e) => setSettings((s) => ({ ...s, inactive_days_threshold: e.target.value ? parseInt(e.target.value) : null }))}
-                    placeholder="7"
-                    className="w-full sm:w-40 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
-                  />
-                  <p className="text-xs text-muted mt-1">Если клиент не писал N дней — отправить follow-up. 0 или пусто — выключено.</p>
-                </div>
 
                 {followupsLoading ? (
                   <div className="text-xs text-muted mt-4">Загрузка сценариев...</div>
@@ -635,22 +657,6 @@ export default function SettingsPage() {
                       placeholder="Bearer token от Wazzup"
                       className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text mb-1.5">Целевое действие бота</label>
-                    <select
-                      value={settings.target_action || ""}
-                      onChange={(e) => setSettings((s) => ({ ...s, target_action: e.target.value || null }))}
-                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
-                    >
-                      <option value="">— Не задано —</option>
-                      <option value="appointment">Запись (записать клиента)</option>
-                      <option value="sale">Продажа (закрыть сделку)</option>
-                      <option value="support">Ответы на вопросы (консультация)</option>
-                    </select>
-                    <p className="text-xs text-muted mt-1">
-                      Когда цель достигнута — бот передаёт диалог менеджеру.
-                    </p>
                   </div>
                 </div>
 
