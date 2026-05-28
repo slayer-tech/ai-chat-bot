@@ -95,6 +95,8 @@ class TenantSettingsSchema(BaseModel):
     voice_max_duration_seconds: int = 120
     dialog_message_limit: Optional[int] = None
     sales_script_text: Optional[str] = None
+    script_stages: Optional[list] = None
+    inactive_days_threshold: Optional[int] = None
 
     @field_serializer("smart_delay_start", "smart_delay_end")
     def serialize_time(self, value):
@@ -126,6 +128,8 @@ class TenantSettingsUpdate(BaseModel):
     voice_max_duration_seconds: Optional[int] = None
     dialog_message_limit: Optional[int] = None
     sales_script_text: Optional[str] = None
+    script_stages: Optional[list] = None
+    inactive_days_threshold: Optional[int] = None
 
 
 class TenantListItem(BaseModel):

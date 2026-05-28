@@ -1,5 +1,6 @@
 """LLM router: all text queries go directly to GPT-4o."""
 
+import re
 from typing import Optional
 
 import structlog
@@ -18,24 +19,39 @@ logger = structlog.get_logger()
 RAG_CONFIDENCE_THRESHOLD = 0.35
 
 
+def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool]:
+    """Parse special tags from LLM response.
+
+    Returns:
+        (clean_text, stage_name, script_complete, is_off_topic)
+    """
+    script_complete = "[SCRIPT_COMPLETE]" in text
+    is_off_topic = "[OFF_TOPIC]" in text
+
+    # Extract stage
+    stage_match = re.search(r"\[STAGE:([^\]]+)\]", text)
+    stage_name = stage_match.group(1).strip() if stage_match else None
+
+    # Clean tags from visible text
+    clean = text
+    for tag in ["[SCRIPT_COMPLETE]", "[OFF_TOPIC]", "[UNSURE]"]:
+        clean = clean.replace(tag, "")
+    clean = re.sub(r"\[STAGE:[^\]]+\]", "", clean)
+    clean = clean.strip()
+    return clean, stage_name, script_complete, is_off_topic
+
+
 async def generate_response(
     db: AsyncSession,
     tenant_id: int,
     external_user_id: str,
     current_message: str,
     require_confidence: bool = True,
-) -> Optional[str]:
+) -> dict[str, any]:
     """Generate a bot response using GPT-4o with RAG + memory + sales script.
 
-    Args:
-        db: Database session.
-        tenant_id: Tenant ID.
-        external_user_id: User identifier.
-        current_message: Tokenized current message.
-        require_confidence: If True and no relevant RAG found, returns None (handoff/fallback).
-
     Returns:
-        Generated response text, or None if confidence too low and require_confidence=True.
+        dict with keys: text, stage, script_complete, is_off_topic
     """
     from sqlalchemy import select
 
@@ -78,9 +94,13 @@ async def generate_response(
     sales_script = settings_obj.sales_script_text if settings_obj else ""
     sales_script_snippet = sales_script[:6000] if sales_script else ""
 
+    # Script stages
+    script_stages = settings_obj.script_stages if settings_obj else None
+    stages_text = ""
+    if script_stages:
+        stages_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(script_stages))
+
     # Check confidence if required:
-    # Script and FAQ are primary knowledge sources — bot should answer based on them.
-    # RAG is supplementary. Handoff only when no script, no FAQ, and no confident RAG.
     has_primary_source = bool(sales_script_snippet.strip()) or bool(faq_text.strip())
     has_confident_rag = bool(good_chunks)
     if require_confidence and not has_primary_source and not has_confident_rag:
@@ -99,7 +119,7 @@ async def generate_response(
                 dialog_id=dialog_id,
                 query=current_message[:50],
             )
-        return None
+        return {"text": None, "stage": None, "script_complete": False, "is_off_topic": False}
 
     # Conversation context
     conv_context = await build_context(db, dialog_id)
@@ -107,7 +127,12 @@ async def generate_response(
     # Guard against empty current message
     if not current_message or not current_message.strip():
         logger.warning("generate_response_empty_message", dialog_id=dialog_id, tenant_id=tenant_id)
-        return "Извините, я не получил текст сообщения. Можете повторить?"
+        return {
+            "text": "Извините, я не получил текст сообщения. Можете повторить?",
+            "stage": None,
+            "script_complete": False,
+            "is_off_topic": False,
+        }
 
     # Build objection-aware system prompt
     full_system = system_prompt.strip()
@@ -127,11 +152,19 @@ async def generate_response(
             "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
         )
 
+    if stages_text:
+        full_system += (
+            f"\n\n[ЭТАПЫ СКРИПТА]\n{stages_text}\n\n"
+            "Веди клиента по этапам скрипта. Определи текущий этап после каждого ответа. "
+            "После текста ответа добавь тег [STAGE:название_этапа]. "
+            "Если клиент прошёл последний этап — добавь тег [SCRIPT_COMPLETE]. "
+            "Если вопрос клиента вообще не по теме — добавь тег [OFF_TOPIC] и мягко верни к теме."
+        )
+
     full_system += (
         "\n\nВАЖНО: Отвечай ТОЛЬКО на основе предоставленной информации выше (скрипт, FAQ, база знаний). "
         "Если вопрос клиента по теме продукта/услуги, но ответа нет в источниках — "
         'начни сообщение с тега [UNSURE] и кратко предложи уточнить у менеджера. '
-        "Если вопрос клиента вообще не по теме — не используй [UNSURE], а мягко верни диалог к теме продукта/услуги. "
         "Не придумывай факты, которых нет в источниках."
     )
 
@@ -152,6 +185,21 @@ async def generate_response(
         temperature=0.7,
         max_tokens=1000,
     )
-    answer = resp["choices"][0]["message"]["content"].strip()
-    logger.info("llm_response_generated", tenant_id=tenant_id, dialog_id=dialog_id, answer=answer)
-    return answer
+    raw_answer = resp["choices"][0]["message"]["content"].strip()
+    clean_text, stage_name, script_complete, is_off_topic = _parse_llm_tags(raw_answer)
+
+    logger.info(
+        "llm_response_generated",
+        tenant_id=tenant_id,
+        dialog_id=dialog_id,
+        stage=stage_name,
+        script_complete=script_complete,
+        is_off_topic=is_off_topic,
+        answer=clean_text,
+    )
+    return {
+        "text": clean_text,
+        "stage": stage_name,
+        "script_complete": script_complete,
+        "is_off_topic": is_off_topic,
+    }

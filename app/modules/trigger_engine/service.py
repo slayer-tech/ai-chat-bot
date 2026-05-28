@@ -37,6 +37,13 @@ DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
         "text": "",
         "fallback_text": "Здравствуйте! Не упустите возможность — я рядом, чтобы помочь.",
     },
+    "inactive_n_days": {
+        "enabled": True,
+        "delay_minutes": 0,
+        "label": "Реактивация неактивных",
+        "text": "",
+        "fallback_text": "Здравствуйте! Мы давно не общались. Есть вопросы, на которые могу помочь?",
+    },
 }
 
 
@@ -308,3 +315,89 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             logger.error("followup_failed", trigger_id=trig.id, error=str(exc))
             trig.status = "failed"
             await db.commit()
+
+
+async def process_inactive_dialogs(db: AsyncSession) -> None:
+    """Send reactivation follow-ups to dialogs inactive for N days."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+
+    # Find all active dialogs with tenant settings
+    from app.modules.tenants.service import get_tenant_settings
+    from sqlalchemy import func
+
+    result = await db.execute(
+        select(Dialog, TenantSettings)
+        .join(TenantSettings, Dialog.tenant_id == TenantSettings.tenant_id)
+        .where(
+            Dialog.status == "active",
+            TenantSettings.inactive_days_threshold.is_not(None),
+            TenantSettings.inactive_days_threshold > 0,
+        )
+    )
+    rows = result.all()
+
+    for dialog, tenant_settings in rows:
+        threshold_days = tenant_settings.inactive_days_threshold
+        if not threshold_days:
+            continue
+
+        # Check if last message is older than threshold
+        if not dialog.last_message_at:
+            continue
+        if dialog.last_message_at > now - timedelta(days=threshold_days):
+            continue
+
+        # Check if inactive follow-up was already sent for this dialog
+        existing = await db.scalar(
+            select(FollowupTrigger)
+            .where(
+                FollowupTrigger.dialog_id == dialog.id,
+                FollowupTrigger.trigger_type == "inactive_n_days",
+                FollowupTrigger.status.in_(["sent", "pending"]),
+            )
+        )
+        if existing:
+            continue
+
+        # Get follow-up text from settings or use fallback
+        scenarios = tenant_settings.followup_scenarios or {}
+        cfg = _get_trigger_config(scenarios, "inactive_n_days")
+        if not cfg["enabled"]:
+            continue
+
+        text_plain = cfg.get("text", "").strip()
+        if not text_plain:
+            text_plain = cfg.get("fallback_text", "Здравствуйте! Мы давно не общались. Есть вопросы, на которые могу помочь?")
+
+        wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+        if not dialog.channel_id or not wazzup_key:
+            continue
+
+        try:
+            await wazzup_client.send_message(
+                dialog.channel_id,
+                dialog.external_user_id,
+                text_plain,
+                chat_type=dialog.channel,
+                api_key=wazzup_key,
+            )
+            # Record that we sent it
+            trig = FollowupTrigger(
+                tenant_id=dialog.tenant_id,
+                dialog_id=dialog.id,
+                trigger_type="inactive_n_days",
+                scheduled_at=now,
+                status="sent",
+                sent_at=now,
+            )
+            db.add(trig)
+            await db.commit()
+            logger.info(
+                "inactive_dialog_reactivated",
+                dialog_id=dialog.id,
+                tenant_id=dialog.tenant_id,
+                days=threshold_days,
+            )
+        except Exception as exc:
+            logger.error("inactive_dialog_send_failed", dialog_id=dialog.id, error=str(exc))

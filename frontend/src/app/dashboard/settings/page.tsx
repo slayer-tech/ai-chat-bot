@@ -181,6 +181,8 @@ export default function SettingsPage() {
         voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
         dialog_message_limit: settings.dialog_message_limit || null,
         sales_script_text: settings.sales_script_text || null,
+        script_stages: settings.script_stages?.length > 0 ? settings.script_stages : null,
+        inactive_days_threshold: settings.inactive_days_threshold || null,
       });
       setSettings(res);
       setSaved(true);
@@ -495,6 +497,29 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* ─── Script Stages ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Этапы скрипта</h2>
+                <p className="text-xs text-muted mb-4">
+                  Опиши этапы скрипта по порядку — бот будет следить за прогрессом. Когда клиент пройдёт последний этап — диалог уйдёт на менеджера. Каждый этап с новой строки.
+                </p>
+                <textarea
+                  value={(settings.script_stages || []).join("\n")}
+                  onChange={(e) => {
+                    const lines = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
+                    setSettings((s) => ({ ...s, script_stages: lines.length > 0 ? lines : null }));
+                  }}
+                  placeholder={"1. Приветствие\n2. Замеры / потребности\n3. Расчёт цены\n4. Оплата"}
+                  className="w-full h-40 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-y font-mono leading-relaxed"
+                />
+                <div className="flex items-center gap-4 mt-4">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить этапы"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
+              </div>
+
               {/* ─── Follow-ups ─── */}
               <div className="card p-6">
                 <h2 className="text-lg font-medium text-text mb-1">Авто-фоллоу апсы</h2>
@@ -509,12 +534,24 @@ export default function SettingsPage() {
                   onChange={setFollowupsEnabled}
                 />
 
+                <div className="mt-4">
+                  <label className="text-xs text-muted">Реактивация неактивных диалогов (дней)</label>
+                  <input
+                    type="number"
+                    value={settings.inactive_days_threshold || ""}
+                    onChange={(e) => setSettings((s) => ({ ...s, inactive_days_threshold: e.target.value ? parseInt(e.target.value) : null }))}
+                    placeholder="7"
+                    className="w-full sm:w-40 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                  />
+                  <p className="text-xs text-muted mt-1">Если клиент не писал N дней — отправить follow-up. 0 или пусто — выключено.</p>
+                </div>
+
                 {followupsLoading ? (
                   <div className="text-xs text-muted mt-4">Загрузка сценариев...</div>
                 ) : (
                   <div className="mt-4 space-y-3">
                     {Object.entries(followupScenarios)
-                      .filter(([key]) => ["new_lead_30min", "no_answer_2h", "no_answer_24h"].includes(key))
+                      .filter(([key]) => ["new_lead_30min", "no_answer_2h", "no_answer_24h", "inactive_n_days"].includes(key))
                       .map(([key, scenario]: [string, any]) => (
                       <div key={key} className="rounded-xl bg-white/[0.02] border border-border p-4">
                         <div className="flex items-center justify-between mb-2">

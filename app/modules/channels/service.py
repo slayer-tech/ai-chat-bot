@@ -404,9 +404,10 @@ async def process_dialog_response(
         if handoff_needed:
             return {"status": "handoff", "dialog_id": dialog_id}
 
-    # Generate response (with RAG confidence check)
+    # Generate response (with RAG confidence check + script stages + off-topic detection)
     from app.modules.llm_router.service import generate_response
-    response_text = await generate_response(db, tenant_id, chat_id, combined_text, require_confidence=True)
+    llm_result = await generate_response(db, tenant_id, chat_id, combined_text, require_confidence=True)
+    response_text = llm_result["text"]
 
     # Low confidence / no relevant knowledge — handoff or fallback
     if response_text is None:
@@ -423,21 +424,39 @@ async def process_dialog_response(
                 "Могу уточнить у коллеги и вернуться к вам."
             )
 
-    # LLM self-evaluated uncertainty — handoff if enabled
-    if response_text.startswith("[UNSURE]"):
-        response_text = response_text.replace("[UNSURE]", "").strip()
-        if tenant_settings and tenant_settings.handoff_enabled:
-            dialog.status = "handoff"
+    # Update current stage from LLM self-assessment
+    if llm_result["stage"]:
+        dialog.current_stage = llm_result["stage"]
+
+    # Script completed — handoff to manager, no more follow-ups
+    if llm_result["script_complete"]:
+        dialog.status = "handoff"
+        await db.commit()
+        from app.modules.trigger_engine.service import _cancel_pending_triggers
+        await _cancel_pending_triggers(db, dialog_id)
+        logger.info("script_complete_handoff", dialog_id=dialog_id, tenant_id=tenant_id, stage=dialog.current_stage)
+        # Still send the final response (e.g. "Записал вас на оплату...")
+        # Then handoff
+
+    # Off-topic handling: count consecutive off-topic interactions
+    elif llm_result["is_off_topic"]:
+        dialog.off_topic_count += 1
+        logger.info("off_topic_detected", dialog_id=dialog_id, count=dialog.off_topic_count)
+        if dialog.off_topic_count >= 2:
+            # Flood: client trolling with off-topic questions
+            dialog.status = "flood"
+            dialog.is_flood_suspected = True
             await db.commit()
             from app.modules.trigger_engine.service import _cancel_pending_triggers
             await _cancel_pending_triggers(db, dialog_id)
-            logger.info("llm_self_assessed_uncertainty_handoff", dialog_id=dialog_id, tenant_id=tenant_id)
-            return {"status": "handoff", "dialog_id": dialog_id}
-        else:
-            response_text = (
-                "Извините, я не уверен в точном ответе на этот вопрос. "
-                "Могу уточнить у коллеги и вернуться к вам."
-            )
+            logger.info("off_topic_flood", dialog_id=dialog_id, tenant_id=tenant_id)
+            return {"status": "flood", "dialog_id": dialog_id}
+    else:
+        # Reset off-topic counter on normal response
+        if dialog.off_topic_count > 0:
+            dialog.off_topic_count = 0
+
+    await db.commit()
 
     # Save bot response to memory
     from app.modules.conversation_memory.service import add_message

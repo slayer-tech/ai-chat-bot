@@ -22,6 +22,10 @@ celery_app.conf.update(
             "task": "app.tasks.followup.process_followups",
             "schedule": 60.0,
         },
+        "reactivate-inactive-dialogs": {
+            "task": "app.tasks.followup.reactivate_inactive_dialogs",
+            "schedule": 86400.0,
+        },
         "reset-monthly-messages": {
             "task": "app.tasks.followup.reset_monthly_messages",
             "schedule": 86400.0,

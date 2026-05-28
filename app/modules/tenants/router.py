@@ -372,7 +372,7 @@ async def get_followup_scenarios(
 ) -> dict[str, Any]:
     """Get follow-up scenarios with defaults."""
     from app.modules.trigger_engine.service import get_default_scenarios
-    ALLOWED_KEYS = {"new_lead_30min", "no_answer_2h", "no_answer_24h"}
+    ALLOWED_KEYS = {"new_lead_30min", "no_answer_2h", "no_answer_24h", "inactive_n_days"}
     settings = await get_tenant_settings(db, tenant_id)
     defaults = get_default_scenarios()
     scenarios = settings.followup_scenarios if settings and settings.followup_scenarios else {}
@@ -394,7 +394,7 @@ async def put_followup_scenarios(
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> dict[str, Any]:
     """Save follow-up scenarios."""
-    ALLOWED_KEYS = {"new_lead_30min", "no_answer_2h", "no_answer_24h"}
+    ALLOWED_KEYS = {"new_lead_30min", "no_answer_2h", "no_answer_24h", "inactive_n_days"}
     scenarios = data.get("scenarios", {})
     filtered = {k: v for k, v in scenarios.items() if k in ALLOWED_KEYS}
     await update_tenant_settings(

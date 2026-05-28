@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 from app.db.models import Tenant
 from app.modules.tenants.service import reset_used_messages
-from app.modules.trigger_engine.service import process_pending_triggers
+from app.modules.trigger_engine.service import process_inactive_dialogs, process_pending_triggers
 
 
 async def _process_followups_async() -> None:
@@ -65,3 +65,27 @@ async def _reset_monthly_messages_async() -> None:
 def reset_monthly_messages() -> None:
     """Reset used_messages for all tenants on the 1st of the month."""
     asyncio.run(_reset_monthly_messages_async())
+
+
+async def _process_inactive_dialogs_async() -> None:
+    """Async implementation of inactive dialog reactivation."""
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        future=True,
+    )
+    AsyncSessionLocal = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    async with AsyncSessionLocal() as db:
+        await process_inactive_dialogs(db)
+    await engine.dispose()
+
+
+@shared_task
+def reactivate_inactive_dialogs() -> None:
+    """Send follow-ups to dialogs inactive for N days."""
+    asyncio.run(_process_inactive_dialogs_async())
