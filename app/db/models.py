@@ -89,6 +89,8 @@ class TenantSettings(Base):
     target_action: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     faq_items: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     debounce_seconds: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    voice_max_duration_seconds: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
+    dialog_message_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class TenantAdmin(Base):
@@ -129,6 +131,7 @@ class Dialog(Base):
     crm_lead_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_flood_suspected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_stalled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

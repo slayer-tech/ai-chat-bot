@@ -114,6 +114,8 @@ class TenantSettingsUpdate(BaseModel):
     target_action: Optional[str] = None
     faq_items: Optional[list] = None
     debounce_seconds: Optional[int] = None
+    voice_max_duration_seconds: Optional[int] = None
+    dialog_message_limit: Optional[int] = None
 
 
 class TenantListItem(BaseModel):

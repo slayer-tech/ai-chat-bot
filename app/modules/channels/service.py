@@ -168,18 +168,96 @@ async def save_inbound_message(
     if is_handoff:
         return {"status": "handoff", "dialog_id": dialog_id}
 
+    # Load tenant settings for limits
+    from app.modules.tenants.service import get_tenant_settings
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+
     # Determine content
     text = msg.text or ""
     voice_url = None
     if msg.type == "audio" and msg.contentUri:
         voice_url = msg.contentUri
 
-    # Transcribe voice if needed
-    if voice_url:
+    # Voice duration check
+    if voice_url and tenant_settings:
+        from app.modules.voice_processing.service import download_voice, get_voice_duration_seconds
+        try:
+            audio_bytes = await download_voice(voice_url)
+            duration = get_voice_duration_seconds(audio_bytes)
+            max_dur = tenant_settings.voice_max_duration_seconds or 120
+            if duration and duration > max_dur:
+                logger.info(
+                    "voice_too_long_handoff",
+                    dialog_id=dialog_id,
+                    duration=duration,
+                    max=max_dur,
+                )
+                dialog.status = "handoff"
+                dialog.message_count += 1
+                dialog.last_message_at = datetime.now(timezone.utc)
+                await db.commit()
+                # Still save the message so manager sees it
+                from app.modules.conversation_memory.service import add_message
+                await add_message(
+                    db,
+                    tenant_id=tenant_id,
+                    dialog_id=dialog_id,
+                    role="user",
+                    content_original="[Голосовое сообщение слишком длинное — передано менеджеру]",
+                    content_tokenized=None,
+                    has_voice=True,
+                    voice_url=voice_url,
+                )
+                return {"status": "handoff", "dialog_id": dialog_id}
+            # Re-use downloaded bytes for transcription
+            from app.modules.voice_processing.service import process_voice_if_needed
+            transcribed = await process_voice_if_needed(voice_url, audio_bytes=audio_bytes)
+            if transcribed:
+                text = transcribed
+        except Exception as exc:
+            logger.error("voice_duration_check_failed", error=str(exc))
+            from app.modules.voice_processing.service import process_voice_if_needed
+            transcribed = await process_voice_if_needed(voice_url)
+            if transcribed:
+                text = transcribed
+    elif voice_url:
         from app.modules.voice_processing.service import process_voice_if_needed
         transcribed = await process_voice_if_needed(voice_url)
         if transcribed:
             text = transcribed
+
+    # Increment incoming message counter
+    dialog.message_count += 1
+    dialog.last_message_at = datetime.now(timezone.utc)
+
+    # Dialog message limit check
+    if tenant_settings and tenant_settings.dialog_message_limit:
+        if dialog.message_count >= tenant_settings.dialog_message_limit:
+            logger.info(
+                "dialog_limit_reached_handoff",
+                dialog_id=dialog_id,
+                message_count=dialog.message_count,
+                limit=tenant_settings.dialog_message_limit,
+            )
+            dialog.status = "handoff"
+            await db.commit()
+            # Save user message before handoff
+            from app.modules.intent_classifier.service import classify_intent
+            intent, confidence = await classify_intent(text)
+            from app.modules.conversation_memory.service import add_message
+            await add_message(
+                db,
+                tenant_id=tenant_id,
+                dialog_id=dialog_id,
+                role="user",
+                content_original=text,
+                content_tokenized=None,
+                intent=intent,
+                confidence=confidence,
+                has_voice=bool(voice_url),
+                voice_url=voice_url,
+            )
+            return {"status": "handoff", "dialog_id": dialog_id}
 
     # Classify intent (for logging in memory)
     from app.modules.intent_classifier.service import classify_intent
@@ -199,6 +277,7 @@ async def save_inbound_message(
         has_voice=bool(voice_url),
         voice_url=voice_url,
     )
+    await db.commit()
 
     return {
         "status": "saved",

@@ -178,6 +178,8 @@ export default function SettingsPage() {
         smart_delay_start: settings.smart_delay_start || null,
         smart_delay_end: settings.smart_delay_end || null,
         timezone: settings.timezone || "Europe/Moscow",
+        voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
+        dialog_message_limit: settings.dialog_message_limit || null,
       });
       setSettings(res);
       setSaved(true);
@@ -643,6 +645,44 @@ export default function SettingsPage() {
                     max={300}
                     value={settings.debounce_seconds ?? 10}
                     onChange={(e) => setSettings((s) => ({ ...s, debounce_seconds: parseInt(e.target.value) || 10 }))}
+                    className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-text">
+                    Макс. длительность голосового (сек)
+                  </p>
+                  <p className="text-xs text-muted mt-0.5 mb-2">
+                    Если голосовое длиннее — бот передаст менеджеру
+                  </p>
+                  <input
+                    type="number"
+                    min={10}
+                    max={600}
+                    value={settings.voice_max_duration_seconds ?? 120}
+                    onChange={(e) => setSettings((s) => ({ ...s, voice_max_duration_seconds: parseInt(e.target.value) || 120 }))}
+                    className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-text">
+                    Лимит сообщений в диалоге
+                  </p>
+                  <p className="text-xs text-muted mt-0.5 mb-2">
+                    Сколько сообщений может написать клиент до передачи менеджеру. Пусто — без лимита.
+                  </p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={settings.dialog_message_limit ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSettings((s) => ({ ...s, dialog_message_limit: val ? parseInt(val) : null }));
+                    }}
+                    placeholder="Без лимита"
                     className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
