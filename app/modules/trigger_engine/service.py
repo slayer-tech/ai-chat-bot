@@ -37,27 +37,6 @@ DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
         "text": "",
         "fallback_text": "Здравствуйте! Не упустите возможность — я рядом, чтобы помочь.",
     },
-    "thinking_3d": {
-        "enabled": False,
-        "delay_minutes": 4320,
-        "label": "Сделка думает 3 дня",
-        "text": "",
-        "fallback_text": "Привет! Как думаете, есть ли смысл обсудить детали?",
-    },
-    "post_meeting_2h": {
-        "enabled": False,
-        "delay_minutes": 120,
-        "label": "Фоллоу-ап после встречи",
-        "text": "",
-        "fallback_text": "Было приятно пообщаться! Если появятся вопросы — пишите.",
-    },
-    "abandoned_7d": {
-        "enabled": False,
-        "delay_minutes": 10080,
-        "label": "Реактивация спустя неделю",
-        "text": "",
-        "fallback_text": "Давно не общались! Возможно, пригодится наша помощь?",
-    },
 }
 
 

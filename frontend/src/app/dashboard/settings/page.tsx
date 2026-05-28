@@ -492,7 +492,9 @@ export default function SettingsPage() {
                   <div className="text-xs text-muted mt-4">Загрузка сценариев...</div>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {Object.entries(followupScenarios).map(([key, scenario]: [string, any]) => (
+                    {Object.entries(followupScenarios)
+                      .filter(([key]) => ["new_lead_30min", "no_answer_2h", "no_answer_24h"].includes(key))
+                      .map(([key, scenario]: [string, any]) => (
                       <div key={key} className="rounded-xl bg-white/[0.02] border border-border p-4">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-medium text-text">{scenario.label || key}</p>
