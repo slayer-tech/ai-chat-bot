@@ -1,9 +1,9 @@
 """Pydantic schemas for tenants and admins."""
 
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer
 
 
 class TariffPlanSchema(BaseModel):
@@ -92,6 +92,14 @@ class TenantSettingsSchema(BaseModel):
     target_action: Optional[str] = None
     faq_items: Optional[list] = None
     debounce_seconds: int = 10
+    voice_max_duration_seconds: int = 120
+    dialog_message_limit: Optional[int] = None
+
+    @field_serializer("smart_delay_start", "smart_delay_end")
+    def serialize_time(self, value):
+        if isinstance(value, dt_time):
+            return value.strftime("%H:%M")
+        return value
 
 
 class TenantSettingsUpdate(BaseModel):
