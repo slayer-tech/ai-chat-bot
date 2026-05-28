@@ -30,6 +30,10 @@ async def ensure_dialog(
             Dialog.external_user_id == msg.chatId,
         )
     )
+    if dialog and not dialog.channel_id:
+        dialog.channel_id = msg.channelId
+        await db.commit()
+        await db.refresh(dialog)
     if not dialog:
         dialog = Dialog(
             tenant_id=tenant_id,
