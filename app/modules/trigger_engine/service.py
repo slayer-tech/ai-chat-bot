@@ -178,11 +178,31 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         )
         .order_by(FollowupTrigger.scheduled_at)
     )
-    triggers = result.scalars().all()
+    triggers = list(result.scalars().all())
+    logger.info(
+        "process_pending_triggers_start",
+        now=now.isoformat(),
+        pending_count=len(triggers),
+        trigger_ids=[t.id for t in triggers],
+        trigger_types=[t.trigger_type for t in triggers],
+    )
 
     for trig in triggers:
+        logger.info(
+            "process_pending_trigger",
+            trigger_id=trig.id,
+            trigger_type=trig.trigger_type,
+            dialog_id=trig.dialog_id,
+            scheduled_at=trig.scheduled_at.isoformat(),
+        )
         dialog = await db.scalar(select(Dialog).where(Dialog.id == trig.dialog_id))
         if not dialog or dialog.status != "active":
+            logger.info(
+                "followup_cancelled_dialog_status",
+                trigger_id=trig.id,
+                dialog_id=trig.dialog_id,
+                status=dialog.status if dialog else "no_dialog",
+            )
             trig.status = "cancelled"
             await db.commit()
             continue
@@ -192,6 +212,11 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         tenant_settings = await get_tenant_settings(db, dialog.tenant_id)
 
         if not tenant_settings or not tenant_settings.followup_enabled:
+            logger.info(
+                "followup_cancelled_settings",
+                trigger_id=trig.id,
+                followup_enabled=tenant_settings.followup_enabled if tenant_settings else None,
+            )
             trig.status = "cancelled"
             await db.commit()
             continue
@@ -209,7 +234,16 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             continue
 
         cfg = _get_trigger_config(tenant_settings.followup_scenarios, trig.trigger_type)
+        logger.info(
+            "followup_config_loaded",
+            trigger_id=trig.id,
+            trigger_type=trig.trigger_type,
+            enabled=cfg["enabled"],
+            has_text=bool(cfg.get("text", "").strip()),
+            has_fallback=bool(cfg.get("fallback_text", "").strip()),
+        )
         if not cfg["enabled"]:
+            logger.info("followup_cancelled_disabled", trigger_id=trig.id)
             trig.status = "cancelled"
             await db.commit()
             continue
@@ -236,6 +270,13 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             trig.status = "cancelled"
             await db.commit()
             continue
+        else:
+            logger.info(
+                "followup_user_not_replied",
+                trigger_id=trig.id,
+                last_user_at=last_user_msg.created_at.isoformat() if last_user_msg else None,
+                last_bot_at=last_bot_msg.created_at.isoformat() if last_bot_msg else None,
+            )
 
         # Use custom text if provided, otherwise generate with YandexGPT
         text_plain = cfg.get("text", "").strip()
