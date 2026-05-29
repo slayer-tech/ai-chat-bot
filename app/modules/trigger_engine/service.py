@@ -318,28 +318,31 @@ async def process_pending_triggers(db: AsyncSession) -> None:
 
 
 async def process_inactive_dialogs(db: AsyncSession) -> None:
-    """Send reactivation follow-ups to dialogs inactive for N days."""
+    """Send reactivation follow-ups to dialogs inactive for N days.
+
+    Uses delay_minutes from inactive_n_days scenario as days threshold.
+    """
     from datetime import timedelta
     now = datetime.now(timezone.utc)
 
     # Find all active dialogs with tenant settings
     from app.modules.tenants.service import get_tenant_settings
-    from sqlalchemy import func
 
     result = await db.execute(
         select(Dialog, TenantSettings)
         .join(TenantSettings, Dialog.tenant_id == TenantSettings.tenant_id)
-        .where(
-            Dialog.status == "active",
-            TenantSettings.inactive_days_threshold.is_not(None),
-            TenantSettings.inactive_days_threshold > 0,
-        )
+        .where(Dialog.status == "active")
     )
     rows = result.all()
 
     for dialog, tenant_settings in rows:
-        threshold_days = tenant_settings.inactive_days_threshold
-        if not threshold_days:
+        cfg = _get_trigger_config(tenant_settings.followup_scenarios, "inactive_n_days")
+        if not cfg["enabled"]:
+            continue
+
+        # delay_minutes is used as days for inactive reactivation
+        threshold_days = cfg.get("delay_minutes", 0)
+        if not threshold_days or threshold_days <= 0:
             continue
 
         # Check if last message is older than threshold

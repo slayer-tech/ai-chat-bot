@@ -93,7 +93,6 @@ class TenantSettings(Base):
     dialog_message_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sales_script_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     script_stages: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
-    inactive_days_threshold: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class TenantAdmin(Base):

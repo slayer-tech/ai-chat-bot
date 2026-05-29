@@ -598,7 +598,9 @@ export default function SettingsPage() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-muted">Задержка (минут)</label>
+                            <label className="text-xs text-muted">
+                              {key === "inactive_n_days" ? "Задержка (дней)" : "Задержка (минут)"}
+                            </label>
                             <input
                               type="number"
                               value={scenario.delay_minutes || 0}
