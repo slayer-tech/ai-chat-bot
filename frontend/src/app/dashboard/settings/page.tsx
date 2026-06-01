@@ -194,6 +194,8 @@ export default function SettingsPage() {
           ? scriptStages.map((s) => `[${s.stage}]\n${s.script}`).join("\n\n")
           : null,
         script_stages: scriptStages.length > 0 ? scriptStages.map((s) => s.stage) : null,
+        crm_type: settings.crm_type || null,
+        crm_config: settings.crm_config || null,
       });
       setSettings(res);
       setSaved(true);
@@ -680,6 +682,146 @@ export default function SettingsPage() {
                     {webhookResult}
                   </p>
                 )}
+              </div>
+
+              {/* ─── CRM Integration ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">CRM интеграция</h2>
+                <p className="text-xs text-muted mb-4">
+                  При handoff бот автоматически создаст/обновит лид в CRM, добавит заметки и задачи.
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1.5">Тип CRM</label>
+                    <select
+                      value={settings.crm_type || ""}
+                      onChange={(e) => setSettings((s) => ({ ...s, crm_type: e.target.value || null }))}
+                      className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    >
+                      <option value="">— Не подключено —</option>
+                      <option value="amocrm">AmoCRM</option>
+                      <option value="bitrix24">Bitrix24</option>
+                    </select>
+                  </div>
+                  {settings.crm_type && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-text mb-1.5">
+                          {settings.crm_type === "amocrm" ? "Base URL (https://xxx.amocrm.ru)" : "Webhook URL"}
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.crm_config?.base_url || settings.crm_config?.webhook_url || ""}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              crm_config: {
+                                ...(s.crm_config || {}),
+                                [s.crm_type === "amocrm" ? "base_url" : "webhook_url"]: e.target.value,
+                              },
+                            }))
+                          }
+                          placeholder={settings.crm_type === "amocrm" ? "https://company.amocrm.ru" : "https://company.bitrix24.ru/rest/1/..."}
+                          className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-text mb-1.5">
+                          {settings.crm_type === "amocrm" ? "Access Token" : "Webhook ключ не нужен (в URL)"}
+                        </label>
+                        {settings.crm_type === "amocrm" && (
+                          <input
+                            type="password"
+                            value={settings.crm_config?.access_token || ""}
+                            onChange={(e) =>
+                              setSettings((s) => ({
+                                ...s,
+                                crm_config: { ...(s.crm_config || {}), access_token: e.target.value },
+                              }))
+                            }
+                            placeholder="Bearer токен из AmoCRM"
+                            className="w-full bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                          />
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted">ID воронки</label>
+                          <input
+                            type="text"
+                            value={settings.crm_config?.pipeline_id || ""}
+                            onChange={(e) =>
+                              setSettings((s) => ({
+                                ...s,
+                                crm_config: { ...(s.crm_config || {}), pipeline_id: e.target.value },
+                              }))
+                            }
+                            placeholder="123"
+                            className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted">ID этапа "В работе"</label>
+                          <input
+                            type="text"
+                            value={settings.crm_config?.stage_handoff || ""}
+                            onChange={(e) =>
+                              setSettings((s) => ({
+                                ...s,
+                                crm_config: { ...(s.crm_config || {}), stage_handoff: e.target.value },
+                              }))
+                            }
+                            placeholder="142"
+                            className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted">ID этапа "Успешно"</label>
+                        <input
+                          type="text"
+                          value={settings.crm_config?.stage_success || ""}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              crm_config: { ...(s.crm_config || {}), stage_success: e.target.value },
+                            }))
+                          }
+                          placeholder="143"
+                          className="w-full sm:w-40 bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted">Custom fields (JSON)</label>
+                        <textarea
+                          value={settings.crm_config?.custom_fields ? JSON.stringify(settings.crm_config.custom_fields, null, 2) : ""}
+                          onChange={(e) => {
+                            try {
+                              const val = e.target.value.trim() ? JSON.parse(e.target.value) : null;
+                              setSettings((s) => ({
+                                ...s,
+                                crm_config: { ...(s.crm_config || {}), custom_fields: val },
+                              }));
+                            } catch {
+                              // ignore parse errors while typing
+                            }
+                          }}
+                          placeholder={`{\n  "pozhelaniya": 12345,\n  "razmer": 12346\n}`}
+                          rows={4}
+                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors font-mono"
+                        />
+                        <p className="text-xs text-muted mt-1">Ключ = название поля, значение = ID поля в CRM. LLM заполнит их из диалога.</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 mt-5">
+                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
+                    {saving ? "Сохранение..." : "Сохранить CRM"}
+                  </button>
+                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
+                </div>
               </div>
 
               {/* ─── Security Toggles ─── */}

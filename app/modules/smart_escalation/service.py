@@ -143,23 +143,8 @@ async def _do_handoff(db: AsyncSession, dialog: Dialog, reason: str) -> None:
     # Summarize
     summary = await summarize_dialog(db, dialog.id)
 
-    # CRM actions — COMMENTED OUT FOR TESTING (no CRM connected yet)
-    # from app.db.models import TenantSettings
-    # ts = await db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == dialog.tenant_id))
-    # if ts and ts.crm_type:
-    #     adapter = get_crm_adapter(ts.crm_type, ts.crm_config or {})
-    #     lead = await adapter.create_lead(
-    #         name=dialog.name or "New Lead",
-    #         phone=dialog.phone,
-    #         source=dialog.channel,
-    #         tags=["AI-квалифицирован"],
-    #     )
-    #     lead_id = lead.get("lead_id")
-    #     dialog.crm_lead_id = lead_id
-    #     await db.commit()
-    #     if lead_id:
-    #         await adapter.move_to_stage(lead_id, "0", "142")
-    #         await adapter.add_note(lead_id, f"Summary: {summary}\nReason: {reason}")
-    #         await adapter.create_task(lead_id, "Перезвонить/ответить, горячий лид")
+    # CRM handoff processing
+    from app.modules.crm_integration.service import handle_handoff
+    await handle_handoff(db, dialog, reason, summary)
 
     logger.info("handoff_executed", dialog_id=dialog.id, reason=reason, summary=summary)

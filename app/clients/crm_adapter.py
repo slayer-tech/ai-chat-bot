@@ -68,6 +68,18 @@ class BaseCRMAdapter(ABC):
         """Create a task for a manager."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def search_lead_by_phone(self, phone: str) -> Optional[str]:
+        """Search existing lead by phone. Returns lead_id or None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def update_lead_custom_fields(
+        self, lead_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update lead custom fields."""
+        raise NotImplementedError
+
 
 class AmoCRMAdapter(BaseCRMAdapter):
     """AmoCRM adapter."""
@@ -172,6 +184,43 @@ class AmoCRMAdapter(BaseCRMAdapter):
             resp.raise_for_status()
             return resp.json()
 
+    async def search_lead_by_phone(self, phone: str) -> Optional[str]:
+        """Search lead by phone via contacts query."""
+        try:
+            async with httpx.AsyncClient(timeout=15.0, headers=self.headers) as client:
+                # Search contacts by phone
+                resp = await client.get(
+                    f"{self.base_url}/api/v4/contacts",
+                    params={"query": phone, "limit": 1},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                contacts = data.get("_embedded", {}).get("contacts", [])
+                if not contacts:
+                    return None
+                contact = contacts[0]
+                # Get linked leads
+                links = contact.get("_embedded", {}).get("leads", [])
+                if links:
+                    return str(links[0]["id"])
+                return None
+        except Exception as exc:
+            logger.warning("amocrm_search_lead_failed", phone=phone, error=str(exc))
+            return None
+
+    async def update_lead_custom_fields(
+        self, lead_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update lead custom fields. fields = {field_id: value, ...}"""
+        custom_fields_values = []
+        for field_id, value in fields.items():
+            custom_fields_values.append(
+                {"field_id": int(field_id), "values": [{"value": value}]}
+            )
+        return await self.update_lead(
+            lead_id, {"custom_fields_values": custom_fields_values}
+        )
+
 
 class Bitrix24Adapter(BaseCRMAdapter):
     """Bitrix24 webhook adapter."""
@@ -246,7 +295,6 @@ class Bitrix24Adapter(BaseCRMAdapter):
                 },
             )
             resp.raise_for_status()
-            # Fallback to activity if needed
             return resp.json()
 
     async def create_task(
@@ -260,8 +308,8 @@ class Bitrix24Adapter(BaseCRMAdapter):
 
         fields = {
             "OWNER_ID": lead_id,
-            "OWNER_TYPE_ID": 1,  # lead
-            "TYPE_ID": 2,  # call
+            "OWNER_TYPE_ID": 1,
+            "TYPE_ID": 2,
             "SUBJECT": text,
             "START_TIME": datetime.now(timezone.utc).isoformat(),
             "END_TIME": datetime.fromtimestamp(
@@ -278,6 +326,34 @@ class Bitrix24Adapter(BaseCRMAdapter):
             )
             resp.raise_for_status()
             return resp.json()
+
+    async def search_lead_by_phone(self, phone: str) -> Optional[str]:
+        """Search lead by phone."""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    f"{self.webhook_url}/crm.lead.list.json",
+                    json={
+                        "filter": {"PHONE": phone},
+                        "select": ["ID"],
+                        "limit": 1,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                leads = data.get("result", [])
+                if leads:
+                    return str(leads[0]["ID"])
+                return None
+        except Exception as exc:
+            logger.warning("bitrix_search_lead_failed", phone=phone, error=str(exc))
+            return None
+
+    async def update_lead_custom_fields(
+        self, lead_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update lead custom fields. fields = {UF_FIELD_NAME: value, ...}"""
+        return await self.update_lead(lead_id, fields)
 
 
 def get_crm_adapter(crm_type: str, config: Optional[dict[str, Any]] = None) -> BaseCRMAdapter:

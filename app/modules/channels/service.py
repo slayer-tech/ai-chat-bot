@@ -47,6 +47,9 @@ async def ensure_dialog(
         db.add(dialog)
         await db.commit()
         await db.refresh(dialog)
+        # Sync with CRM on first contact
+        from app.modules.crm_integration.service import sync_lead_on_first_contact
+        await sync_lead_on_first_contact(db, dialog)
         # Schedule new-lead follow-up for fresh dialogs
         from app.modules.trigger_engine.service import schedule_trigger
         from app.modules.tenants.service import get_tenant_settings
@@ -204,6 +207,10 @@ async def save_inbound_message(
                 await db.commit()
                 from app.modules.trigger_engine.service import _cancel_pending_triggers
                 await _cancel_pending_triggers(db, dialog_id)
+                from app.modules.conversation_memory.service import summarize_dialog
+                from app.modules.crm_integration.service import handle_handoff
+                summary = await summarize_dialog(db, dialog_id)
+                await handle_handoff(db, dialog, "voice_too_long", summary)
                 # Still save the message so manager sees it
                 from app.modules.conversation_memory.service import add_message
                 await add_message(
@@ -251,6 +258,10 @@ async def save_inbound_message(
             await db.commit()
             from app.modules.trigger_engine.service import _cancel_pending_triggers
             await _cancel_pending_triggers(db, dialog_id)
+            from app.modules.conversation_memory.service import summarize_dialog
+            from app.modules.crm_integration.service import handle_handoff
+            summary = await summarize_dialog(db, dialog_id)
+            await handle_handoff(db, dialog, "dialog_limit_reached", summary)
             # Save user message before handoff
             from app.modules.intent_classifier.service import classify_intent
             intent, confidence = await classify_intent(text)
@@ -297,6 +308,11 @@ async def save_inbound_message(
         role=msg_obj.role,
         text_preview=text[:50] if text else None,
     )
+
+    # Add note to CRM about user message
+    if text:
+        from app.modules.crm_integration.service import add_dialog_note_to_crm
+        await add_dialog_note_to_crm(db, dialog, f"Клиент: {text[:500]}", prefix="[Сообщение] ")
 
     # Cancel any pending follow-ups because the user just replied
     from app.modules.trigger_engine.service import _cancel_pending_triggers
@@ -416,6 +432,10 @@ async def process_dialog_response(
             await db.commit()
             from app.modules.trigger_engine.service import _cancel_pending_triggers
             await _cancel_pending_triggers(db, dialog_id)
+            from app.modules.conversation_memory.service import summarize_dialog
+            from app.modules.crm_integration.service import handle_handoff
+            summary = await summarize_dialog(db, dialog_id)
+            await handle_handoff(db, dialog, "rag_low_confidence", summary)
             logger.info("rag_handoff_low_confidence", dialog_id=dialog_id, tenant_id=tenant_id)
             return {"status": "handoff", "dialog_id": dialog_id}
         else:
@@ -474,6 +494,23 @@ async def process_dialog_response(
         await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type, wazzup_key)
     except Exception as exc:
         logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
+
+    # Add bot response note to CRM
+    if response_text:
+        from app.modules.crm_integration.service import add_dialog_note_to_crm
+        await add_dialog_note_to_crm(db, dialog, f"Бот: {response_text[:500]}", prefix="[Ответ бота] ")
+
+    # CRM: script complete
+    if llm_result.get("script_complete"):
+        from app.modules.conversation_memory.service import summarize_dialog
+        summary = await summarize_dialog(db, dialog_id)
+        from app.modules.crm_integration.service import handle_script_complete
+        await handle_script_complete(db, dialog, summary)
+
+    # CRM: flood
+    if dialog.status == "flood":
+        from app.modules.crm_integration.service import handle_flood
+        await handle_flood(db, dialog)
 
     # Schedule follow-up triggers after bot response
     from app.modules.trigger_engine.service import schedule_trigger
