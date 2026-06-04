@@ -19,14 +19,15 @@ logger = structlog.get_logger()
 RAG_CONFIDENCE_THRESHOLD = 0.35
 
 
-def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool]:
+def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
     """Parse special tags from LLM response.
 
     Returns:
-        (clean_text, stage_name, script_complete, is_off_topic)
+        (clean_text, stage_name, script_complete, is_off_topic, delete_request)
     """
     script_complete = "[SCRIPT_COMPLETE]" in text
     is_off_topic = "[OFF_TOPIC]" in text
+    delete_request = "[DELETE_REQUEST]" in text
 
     # Extract stage
     stage_match = re.search(r"\[STAGE:([^\]]+)\]", text)
@@ -34,11 +35,11 @@ def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool]:
 
     # Clean tags from visible text
     clean = text
-    for tag in ["[SCRIPT_COMPLETE]", "[OFF_TOPIC]", "[UNSURE]"]:
+    for tag in ["[SCRIPT_COMPLETE]", "[OFF_TOPIC]", "[UNSURE]", "[DELETE_REQUEST]"]:
         clean = clean.replace(tag, "")
     clean = re.sub(r"\[STAGE:[^\]]+\]", "", clean)
     clean = clean.strip()
-    return clean, stage_name, script_complete, is_off_topic
+    return clean, stage_name, script_complete, is_off_topic, delete_request
 
 
 async def generate_response(
@@ -51,7 +52,7 @@ async def generate_response(
     """Generate a bot response using GPT-4o with RAG + memory + sales script.
 
     Returns:
-        dict with keys: text, stage, script_complete, is_off_topic
+        dict with keys: text, stage, script_complete, is_off_topic, delete_request
     """
     from sqlalchemy import select
 
@@ -169,7 +170,9 @@ async def generate_response(
         "\n\nВАЖНО: Отвечай ТОЛЬКО на основе предоставленной информации выше (скрипт, FAQ, база знаний). "
         "Если вопрос клиента по теме продукта/услуги, но ответа нет в источниках — "
         'начни сообщение с тега [UNSURE] и кратко предложи уточнить у менеджера. '
-        "Не придумывай факты, которых нет в источниках."
+        "Не придумывай факты, которых нет в источников.\n\n"
+        "ЕСЛИ КЛИЕНТ ПРОСИТ УДАЛИТЬ ЕГО ДАННЫЕ (например: 'удалите мои данные', 'забудь меня', 'стереть переписку', 'я отзываю согласие') — "
+        "начни сообщение с тега [DELETE_REQUEST] и подтверди, что данные будут удалены."
     )
 
     messages: list[dict[str, str]] = []
@@ -190,7 +193,7 @@ async def generate_response(
         max_tokens=1000,
     )
     raw_answer = resp["choices"][0]["message"]["content"].strip()
-    clean_text, stage_name, script_complete, is_off_topic = _parse_llm_tags(raw_answer)
+    clean_text, stage_name, script_complete, is_off_topic, delete_request = _parse_llm_tags(raw_answer)
 
     logger.info(
         "llm_response_generated",
@@ -199,6 +202,7 @@ async def generate_response(
         stage=stage_name,
         script_complete=script_complete,
         is_off_topic=is_off_topic,
+        delete_request=delete_request,
         answer=clean_text,
     )
     return {
@@ -206,4 +210,5 @@ async def generate_response(
         "stage": stage_name,
         "script_complete": script_complete,
         "is_off_topic": is_off_topic,
+        "delete_request": delete_request,
     }

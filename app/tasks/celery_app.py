@@ -30,5 +30,9 @@ celery_app.conf.update(
             "task": "app.tasks.followup.reset_monthly_messages",
             "schedule": 86400.0,
         },
+        "cleanup-expired-data": {
+            "task": "app.tasks.followup.cleanup_expired_data",
+            "schedule": 86400.0,
+        },
     },
 )

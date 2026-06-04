@@ -93,6 +93,7 @@ class TenantSettings(Base):
     dialog_message_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sales_script_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     script_stages: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    data_retention_days: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
 
 
 class TenantAdmin(Base):
@@ -137,6 +138,8 @@ class Dialog(Base):
     off_topic_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    data_deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    data_deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

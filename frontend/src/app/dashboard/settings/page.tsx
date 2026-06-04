@@ -190,6 +190,7 @@ export default function SettingsPage() {
         timezone: settings.timezone || "Europe/Moscow",
         voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
         dialog_message_limit: settings.dialog_message_limit || null,
+        data_retention_days: settings.data_retention_days ?? 90,
         sales_script_text: scriptStages.length > 0
           ? scriptStages.map((s) => `[${s.stage}]\n${s.script}`).join("\n\n")
           : null,
@@ -893,6 +894,26 @@ export default function SettingsPage() {
                       setSettings((s) => ({ ...s, dialog_message_limit: val ? parseInt(val) : null }));
                     }}
                     placeholder="Без лимита"
+                    className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-text">
+                    Срок хранения данных (дней)
+                  </p>
+                  <p className="text-xs text-muted mt-0.5 mb-2">
+                    Через сколько дней после закрытия диалога удалять переписку (152-ФЗ / GDPR). Минимум 1 день.
+                  </p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={settings.data_retention_days ?? 90}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 90;
+                      setSettings((s) => ({ ...s, data_retention_days: val }));
+                    }}
                     className="w-32 bg-void border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>

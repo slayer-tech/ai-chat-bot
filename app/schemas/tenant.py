@@ -96,6 +96,7 @@ class TenantSettingsSchema(BaseModel):
     dialog_message_limit: Optional[int] = None
     sales_script_text: Optional[str] = None
     script_stages: Optional[list] = None
+    data_retention_days: int = 90
 
     @field_serializer("smart_delay_start", "smart_delay_end")
     def serialize_time(self, value):
@@ -128,6 +129,7 @@ class TenantSettingsUpdate(BaseModel):
     dialog_message_limit: Optional[int] = None
     sales_script_text: Optional[str] = None
     script_stages: Optional[list] = None
+    data_retention_days: Optional[int] = None
 
 
 class TenantListItem(BaseModel):

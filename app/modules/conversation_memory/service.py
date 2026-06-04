@@ -109,3 +109,23 @@ async def build_context(db: AsyncSession, dialog_id: int) -> list[dict[str, str]
         if content.strip():
             context.append({"role": m.role, "content": content})
     return context
+
+
+async def delete_dialog_data(db: AsyncSession, dialog_id: int) -> None:
+    """Hard delete all data for a dialog (GDPR / 152-FZ right to be forgotten)."""
+    from sqlalchemy import delete
+    from app.db.models import FollowupTrigger, TokenVault
+
+    await db.execute(delete(Message).where(Message.dialog_id == dialog_id))
+    await db.execute(delete(FollowupTrigger).where(FollowupTrigger.dialog_id == dialog_id))
+    await db.execute(delete(TokenVault).where(TokenVault.dialog_id == dialog_id))
+    dialog = await db.scalar(select(Dialog).where(Dialog.id == dialog_id))
+    if dialog:
+        dialog.data_deleted_at = datetime.now(timezone.utc)
+        dialog.status = "closed"
+        dialog.summary = None
+        dialog.name = None
+        dialog.phone = None
+        dialog.crm_lead_id = None
+        dialog.current_stage = None
+    await db.commit()

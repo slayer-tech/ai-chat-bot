@@ -448,6 +448,20 @@ async def process_dialog_response(
     if llm_result["stage"]:
         dialog.current_stage = llm_result["stage"]
 
+    # Data deletion request — GDPR / 152-FZ right to be forgotten
+    if llm_result.get("delete_request"):
+        logger.info("data_deletion_requested", dialog_id=dialog_id, tenant_id=tenant_id)
+        from app.modules.trigger_engine.service import _cancel_pending_triggers
+        await _cancel_pending_triggers(db, dialog_id)
+        from app.modules.conversation_memory.service import delete_dialog_data
+        await delete_dialog_data(db, dialog_id)
+        # Send confirmation (response_text already contains LLM confirmation)
+        try:
+            await send_outbound(tenant_id, channel_id, chat_id, response_text, chat_type, wazzup_key)
+        except Exception as exc:
+            logger.error("wazzup_outbound_failed", error=str(exc), dialog_id=dialog_id)
+        return {"status": "deleted", "dialog_id": dialog_id}
+
     # Script completed — handoff to manager, no more follow-ups
     if llm_result["script_complete"]:
         dialog.status = "handoff"
