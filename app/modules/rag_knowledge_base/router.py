@@ -41,11 +41,11 @@ def _extract_text(filename: str, content: bytes) -> str:
 
 
 def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> list[str]:
-    """Split text into logical chunks preserving FAQ questions and sections.
+    """Split text into logical chunks preserving headers, FAQ questions and sections.
 
     Strategy:
-    1. Split by FAQ markers (❓, Вопрос:, Q:)
-    2. Split by double newlines
+    1. Split by section headers (3.5. TITLE, markdown ###, ALL-CAPS short lines)
+    2. Inside each section — split by FAQ markers (❓, Вопрос:)
     3. Merge small adjacent blocks
     4. Split oversized blocks by sentences
     """
@@ -54,19 +54,53 @@ def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> l
     # Normalize whitespace
     text = re.sub(r'\n{3,}', '\n\n', text.strip())
 
-    # Try FAQ-first splitting: each ❓ question + answer becomes its own block
-    if '❓' in text or 'Вопрос:' in text or '\nQ:' in text:
-        # Split by question markers, keeping the marker with the block
-        parts = re.split(r'(?=\n?\s*❓|\nВопрос:|\nQ:)', text)
-        blocks = [p.strip() for p in parts if p.strip()]
-    else:
-        # Split by double newlines (paragraphs / sections)
-        blocks = [p.strip() for p in text.split('\n\n') if p.strip()]
+    def _is_header(line: str) -> bool:
+        """Detect section headers in document."""
+        line = line.strip()
+        if not line:
+            return False
+        # Markdown headers: ### Title
+        if line.startswith('#'):
+            return True
+        # Numbered headers: 3.5. ОРТОПЕДИЯ or 3.5 ОРТОПЕДИЯ
+        if re.match(r'^\d+(\.\d+)*\.?\s+[А-ЯA-Z]', line):
+            return True
+        # All-caps short lines (like "ОРТОПЕДИЯ" or "УСЛУГИ И ЦЕНЫ")
+        if len(line) < 80 and line == line.upper() and any(c.isalpha() for c in line):
+            return True
+        # Lines with only uppercase + spaces/punctuation (like "ДЕТСКАЯ СТОМАТОЛОГИЯ")
+        cleaned = re.sub(r'[\s\(\)\-\–\.\d]', '', line)
+        if len(cleaned) > 3 and cleaned == cleaned.upper():
+            return True
+        return False
+
+    # First: split by headers — each header starts a new block
+    lines = text.split('\n')
+    blocks: list[str] = []
+    current_block: list[str] = []
+    for line in lines:
+        if _is_header(line):
+            if current_block:
+                blocks.append('\n'.join(current_block).strip())
+            current_block = [line]
+        else:
+            current_block.append(line)
+    if current_block:
+        blocks.append('\n'.join(current_block).strip())
+
+    # Second: inside each block, split by FAQ markers if present
+    final_blocks: list[str] = []
+    for block in blocks:
+        if '❓' in block or 'Вопрос:' in block or '\nQ:' in block:
+            parts = re.split(r'(?=\n?\s*❓|\nВопрос:|\nQ:)', block)
+            final_blocks.extend(p.strip() for p in parts if p.strip())
+        else:
+            final_blocks.append(block)
 
     # Merge small blocks with neighbors until we hit max_chunk_size
     merged: list[str] = []
     current = ""
-    for block in blocks:
+    for block in final_blocks:
         if not current:
             current = block
         elif len(current) + len(block) + 2 <= max_chunk_size:
@@ -78,12 +112,11 @@ def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> l
         merged.append(current)
 
     # Split oversized blocks by sentences
-    final_chunks: list[str] = []
+    result: list[str] = []
     for chunk in merged:
         if len(chunk) <= max_chunk_size:
-            final_chunks.append(chunk)
+            result.append(chunk)
             continue
-        # Split by sentence endings
         sentences = re.split(r'(?<=[.!?])\s+', chunk)
         current = ""
         for sent in sentences:
@@ -91,21 +124,11 @@ def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> l
                 current += (" " if current else "") + sent
             else:
                 if current:
-                    final_chunks.append(current.strip())
+                    result.append(current.strip())
                 current = sent
         if current:
-            final_chunks.append(current.strip())
-
-    # Add overlap between adjacent chunks for continuity
-    if len(final_chunks) > 1 and overlap > 0:
-        result: list[str] = []
-        for i, chunk in enumerate(final_chunks):
-            if i > 0:
-                prefix = final_chunks[i - 1][-overlap:]
-                chunk = prefix + "\n" + chunk
-            result.append(chunk.strip())
-        return result
-    return final_chunks
+            result.append(current.strip())
+    return result
 
 
 @router.post("/knowledge")
