@@ -200,6 +200,16 @@ export default function SettingsPage() {
     api.knowledgeDocs().then(setDocs).catch(() => {});
   };
 
+  const handleDeleteDoc = async (docId: number) => {
+    if (!confirm("Удалить документ и все его чанки? Это необратимо.")) return;
+    try {
+      await api.deleteKnowledgeDoc(docId);
+      setDocs((prev) => prev.filter((d) => d.id !== docId));
+    } catch (e) {
+      alert("Ошибка удаления");
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1020,7 +1030,16 @@ export default function SettingsPage() {
                     {docs.map((d) => (
                       <div key={d.id} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-white/[0.03]">
                         <span className="text-text truncate">{d.filename}</span>
-                        <span className="text-xs text-muted ml-3 shrink-0">{d.status}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted">{d.status}</span>
+                          <button
+                            onClick={() => handleDeleteDoc(d.id)}
+                            className="text-xs text-accent hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-white/[0.05]"
+                            title="Удалить"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

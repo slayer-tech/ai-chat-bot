@@ -3,7 +3,7 @@
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -177,3 +177,34 @@ async def search_knowledge_debug(
             {"content": r["content"][:300], "distance": r["distance"]} for r in results
         ],
     }
+
+
+@router.delete("/knowledge/{doc_id}")
+async def delete_document(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, str]:
+    """Delete a knowledge base document and all its chunks."""
+    from sqlalchemy import delete
+    from app.db.models import KnowledgeBaseChunk, KnowledgeBaseDoc
+
+    doc = await db.scalar(
+        select(KnowledgeBaseDoc).where(
+            KnowledgeBaseDoc.id == doc_id,
+            KnowledgeBaseDoc.tenant_id == tenant_id,
+        )
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await db.execute(
+        delete(KnowledgeBaseChunk).where(
+            KnowledgeBaseChunk.doc_id == doc_id,
+            KnowledgeBaseChunk.tenant_id == tenant_id,
+        )
+    )
+    await db.delete(doc)
+    await db.commit()
+    return {"status": "deleted"}

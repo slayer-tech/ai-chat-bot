@@ -109,6 +109,8 @@ export const api = {
 
   knowledgeDocs: () => fetchJson<Array<{ id: number; filename: string; status: string; created_at: string }>>("/api/v1/admin/knowledge"),
 
+  deleteKnowledgeDoc: (docId: number) => fetchJson<{ status: string }>(`/api/v1/admin/knowledge/${docId}`, { method: "DELETE" }),
+
   generatePrompt: (data: Record<string, string>) =>
     fetchJson<{ system_prompt: string }>("/api/v1/admin/generate-prompt", {
       method: "POST",
