@@ -40,6 +40,74 @@ def _extract_text(filename: str, content: bytes) -> str:
     raise ValueError(f"Unsupported file type: .{ext}")
 
 
+def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> list[str]:
+    """Split text into logical chunks preserving FAQ questions and sections.
+
+    Strategy:
+    1. Split by FAQ markers (❓, Вопрос:, Q:)
+    2. Split by double newlines
+    3. Merge small adjacent blocks
+    4. Split oversized blocks by sentences
+    """
+    import re
+
+    # Normalize whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text.strip())
+
+    # Try FAQ-first splitting: each ❓ question + answer becomes its own block
+    if '❓' in text or 'Вопрос:' in text or '\nQ:' in text:
+        # Split by question markers, keeping the marker with the block
+        parts = re.split(r'(?=\n?\s*❓|\nВопрос:|\nQ:)', text)
+        blocks = [p.strip() for p in parts if p.strip()]
+    else:
+        # Split by double newlines (paragraphs / sections)
+        blocks = [p.strip() for p in text.split('\n\n') if p.strip()]
+
+    # Merge small blocks with neighbors until we hit max_chunk_size
+    merged: list[str] = []
+    current = ""
+    for block in blocks:
+        if not current:
+            current = block
+        elif len(current) + len(block) + 2 <= max_chunk_size:
+            current += "\n\n" + block
+        else:
+            merged.append(current)
+            current = block
+    if current:
+        merged.append(current)
+
+    # Split oversized blocks by sentences
+    final_chunks: list[str] = []
+    for chunk in merged:
+        if len(chunk) <= max_chunk_size:
+            final_chunks.append(chunk)
+            continue
+        # Split by sentence endings
+        sentences = re.split(r'(?<=[.!?])\s+', chunk)
+        current = ""
+        for sent in sentences:
+            if len(current) + len(sent) + 1 <= max_chunk_size:
+                current += (" " if current else "") + sent
+            else:
+                if current:
+                    final_chunks.append(current.strip())
+                current = sent
+        if current:
+            final_chunks.append(current.strip())
+
+    # Add overlap between adjacent chunks for continuity
+    if len(final_chunks) > 1 and overlap > 0:
+        result: list[str] = []
+        for i, chunk in enumerate(final_chunks):
+            if i > 0:
+                prefix = final_chunks[i - 1][-overlap:]
+                chunk = prefix + "\n" + chunk
+            result.append(chunk.strip())
+        return result
+    return final_chunks
+
+
 @router.post("/knowledge")
 async def upload_document(
     file: UploadFile = File(...),
@@ -68,18 +136,8 @@ async def upload_document(
         return {"error": "Could not extract text from file"}
 
     doc = await add_document(db, tenant_id, file.filename)
-    # Chunking by ~1500 chars with 200 char overlap
-    chunk_size = 1500
-    overlap = 200
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk.strip())
-        if end >= len(text):
-            break
-        start = end - overlap
+    # Smart chunking: split by logical blocks (FAQ questions, sections), then merge small ones
+    chunks = _smart_chunk(text, max_chunk_size=1200, overlap=150)
 
     await add_chunks(db, tenant_id, doc.id, chunks)
     return {"doc_id": doc.id, "chunks": len(chunks)}
