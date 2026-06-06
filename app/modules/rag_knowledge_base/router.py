@@ -100,3 +100,22 @@ async def list_documents(
         {"id": d.id, "filename": d.filename, "status": d.status, "created_at": d.created_at.isoformat()}
         for d in docs
     ]
+
+
+@router.get("/knowledge/search")
+async def search_knowledge_debug(
+    q: str,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> dict[str, Any]:
+    """Debug RAG search — returns raw chunks with scores."""
+    from app.modules.rag_knowledge_base.service import search_knowledge_with_scores
+    results = await search_knowledge_with_scores(db, tenant_id, q, top_k=5)
+    return {
+        "query": q,
+        "chunks_found": len(results),
+        "results": [
+            {"content": r["content"][:300], "distance": r["distance"]} for r in results
+        ],
+    }
