@@ -21,28 +21,28 @@ DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
         "delay_minutes": 30,
         "label": "Не ответил на приветствие",
         "text": "",
-        "fallback_text": "Привет! Вы там? Есть вопросы, на которые могу ответить?",
+        "fallback_text": "Вы там? Есть вопросы, на которые могу ответить?",
     },
     "no_answer_2h": {
         "enabled": True,
         "delay_minutes": 120,
         "label": "Не ответил на вопрос 2 часа",
         "text": "",
-        "fallback_text": "Добрый день! Подскажите, остались ли у вас вопросы? Рядом, если что 😊",
+        "fallback_text": "Подскажите, остались ли у вас вопросы? Рядом, если что.",
     },
     "no_answer_24h": {
         "enabled": True,
         "delay_minutes": 1440,
         "label": "Диалог завис на сутки",
         "text": "",
-        "fallback_text": "Здравствуйте! Не упустите возможность — я рядом, чтобы помочь.",
+        "fallback_text": "Не упустите возможность — я рядом, чтобы помочь с записью.",
     },
     "inactive_n_days": {
         "enabled": True,
         "delay_minutes": 0,
         "label": "Реактивация неактивных",
         "text": "",
-        "fallback_text": "Здравствуйте! Мы давно не общались. Есть вопросы, на которые могу помочь?",
+        "fallback_text": "Мы давно не общались. Есть вопросы, на которые могу помочь?",
     },
 }
 
@@ -270,7 +270,9 @@ async def process_pending_triggers(db: AsyncSession) -> None:
             context = await build_context(db, dialog.id)
             prompt = (
                 "Ты вежливый русскоязычный sales-ассистент. Напиши короткое follow-up сообщение "
-                "на основе истории диалога. Не более 200 символов. Будь дружелюбным и ненавязчивым.\n\n"
+                "на основе истории диалога. Не более 200 символов. Будь дружелюбным и ненавязчивым.\n"
+                "ВАЖНО: Это ПРОДОЛЖЕНИЕ диалога, а не новое начало. НЕ пиши 'Здравствуйте', 'Привет', 'Добрый день'. "
+                "Продолжи тему, которую обсуждали.\n\n"
                 + "\n".join(f"{'Клиент' if m['role'] == 'user' else 'Ассистент'}: {m['content']}" for m in context[-5:])
             )
             try:
@@ -283,6 +285,12 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                     max_tokens=150,
                 )
                 text_plain = resp["choices"][0]["message"]["content"].strip()
+                # Strip greetings from follow-ups (should not happen, but guard against it)
+                for greeting in ("Здравствуйте! ", "Здравствуйте, ", "Здравствуйте!", "Здравствуйте", "Привет! ", "Привет, ", "Привет!", "Привет", "Добрый день! ", "Добрый день, ", "Добрый день!", "Добрый день", "Доброе утро! ", "Добрый вечер! "):
+                    if text_plain.startswith(greeting):
+                        text_plain = text_plain[len(greeting):].strip()
+                        break
+                text_plain = text_plain[0].upper() + text_plain[1:] if text_plain else ""
                 logger.info("followup_generated", trigger_id=trig.id, dialog_id=dialog.id, text_preview=text_plain[:50])
             except Exception as exc:
                 logger.error("followup_generation_failed", trigger_id=trig.id, error=str(exc))
@@ -290,7 +298,7 @@ async def process_pending_triggers(db: AsyncSession) -> None:
 
         # Fallback if GPT returned empty or whitespace
         if not text_plain:
-            text_plain = cfg.get("fallback_text", "Добрый день! Подскажите, остались ли вопросы?")
+            text_plain = cfg.get("fallback_text", "Подскажите, остались ли вопросы?")
             logger.info("followup_using_fallback", trigger_id=trig.id, dialog_id=dialog.id)
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
@@ -371,7 +379,7 @@ async def process_inactive_dialogs(db: AsyncSession) -> None:
 
         text_plain = cfg.get("text", "").strip()
         if not text_plain:
-            text_plain = cfg.get("fallback_text", "Здравствуйте! Мы давно не общались. Есть вопросы, на которые могу помочь?")
+            text_plain = cfg.get("fallback_text", "Мы давно не общались. Есть вопросы, на которые могу помочь?")
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
         if not dialog.channel_id or not wazzup_key:
