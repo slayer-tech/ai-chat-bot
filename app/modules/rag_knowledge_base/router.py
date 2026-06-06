@@ -62,16 +62,18 @@ def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> l
         # Markdown headers: ### Title
         if line.startswith('#'):
             return True
-        # Numbered headers: 3.5. ОРТОПЕДИЯ or 3.5 ОРТОПЕДИЯ
-        if re.match(r'^\d+(\.\d+)*\.?\s+[А-ЯA-Z]', line):
+        # Numbered headers: 3.5. Ортопедия or 3.5. ОРТОПЕДИЯ or 1. Title
+        if re.match(r'^\d+(\.\d+)*\.?\s+\S', line):
             return True
-        # All-caps short lines (like "ОРТОПЕДИЯ" or "УСЛУГИ И ЦЕНЫ")
-        if len(line) < 80 and line == line.upper() and any(c.isalpha() for c in line):
-            return True
-        # Lines with only uppercase + spaces/punctuation (like "ДЕТСКАЯ СТОМАТОЛОГИЯ")
-        cleaned = re.sub(r'[\s\(\)\-\–\.\d]', '', line)
-        if len(cleaned) > 3 and cleaned == cleaned.upper():
-            return True
+        # Short lines without list markers — likely headers
+        if len(line) < 60 and not any(line.startswith(m) for m in ('•', '-', '—', '–', '*', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '0.')):
+            # If line has only letters + spaces/punctuation and no lowercase — likely header
+            letters_only = re.sub(r'[^\w\s]', '', line)
+            if letters_only and letters_only == letters_only.upper():
+                return True
+            # If very short and no sentence-ending punctuation
+            if len(line) < 40 and not any(line.endswith(e) for e in ('.', '!', '?', ':', ';')):
+                return True
         return False
 
     # First: split by headers — each header starts a new block
@@ -200,6 +202,35 @@ async def search_knowledge_debug(
             {"content": r["content"][:300], "distance": r["distance"]} for r in results
         ],
     }
+
+
+@router.get("/knowledge/{doc_id}/chunks")
+async def list_document_chunks(
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
+) -> list[dict[str, Any]]:
+    """List all chunks for a document with sizes."""
+    from app.db.models import KnowledgeBaseChunk
+    result = await db.execute(
+        select(KnowledgeBaseChunk)
+        .where(
+            KnowledgeBaseChunk.doc_id == doc_id,
+            KnowledgeBaseChunk.tenant_id == tenant_id,
+        )
+        .order_by(KnowledgeBaseChunk.id)
+    )
+    chunks = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "size": len(c.content),
+            "has_embedding": c.embedding is not None,
+            "preview": c.content[:200],
+        }
+        for c in chunks
+    ]
 
 
 @router.delete("/knowledge/{doc_id}")
