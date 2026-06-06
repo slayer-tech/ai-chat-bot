@@ -41,95 +41,172 @@ def _extract_text(filename: str, content: bytes) -> str:
 
 
 def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> list[str]:
-    """Split text into logical chunks preserving headers, FAQ questions and sections.
+    """Semantic chunking preserving section boundaries, FAQ Q&A pairs and scenarios.
 
     Strategy:
-    1. Split by section headers (3.5. TITLE, markdown ###, ALL-CAPS short lines)
-    2. Inside each section — split by FAQ markers (❓, Вопрос:)
-    3. Merge small adjacent blocks
-    4. Split oversized blocks by sentences
+    1. Group text by major section headers (1., 3.1., 4., etc. — mostly UPPERCASE titles)
+    2. Inside each group — extract FAQ pairs (❓ question + following answer lines)
+    3. Extract scenario blocks ("Сценарий N:" + following dialogue)
+    4. Keep plain content grouped by paragraph breaks; never merge across sections
+    5. Split oversized plain text by paragraphs (not arbitrary sentences)
     """
     import re
 
-    # Normalize whitespace
-    text = re.sub(r'\n{3,}', '\n\n', text.strip())
+    text = re.sub(r"\n{3,}", "\n\n", text.strip())
+    lines = text.split("\n")
 
-    def _is_header(line: str) -> bool:
-        """Detect section headers in document."""
+    def _is_major_header(line: str) -> bool:
         line = line.strip()
         if not line:
             return False
-        # Markdown headers: ### Title
-        if line.startswith('#'):
+        if line.startswith("#"):
             return True
-        # Numbered headers: 3.5. Ортопедия or 3.5. ОРТОПЕДИЯ or 1. Title
-        if re.match(r'^\d+(\.\d+)*\.?\s+\S', line):
-            return True
-        # Short lines without list markers — likely headers
-        if len(line) < 60 and not any(line.startswith(m) for m in ('•', '-', '—', '–', '*', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '0.')):
-            # If line has only letters + spaces/punctuation and no lowercase — likely header
-            letters_only = re.sub(r'[^\w\s]', '', line)
-            if letters_only and letters_only == letters_only.upper():
-                return True
-            # If very short and no sentence-ending punctuation
-            if len(line) < 40 and not any(line.endswith(e) for e in ('.', '!', '?', ':', ';')):
+        m = re.match(r"^(\d+(\.\d+)*)\.?\s+(.+)$", line)
+        if m:
+            title = m.group(3)
+            letters = [c for c in title if c.isalpha()]
+            if letters:
+                upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+                if upper_ratio > 0.7:
+                    return True
+            if len(line) < 40:
                 return True
         return False
 
-    # First: split by headers — each header starts a new block
-    lines = text.split('\n')
-    blocks: list[str] = []
-    current_block: list[str] = []
+    def _is_faq(line: str) -> bool:
+        line = line.strip()
+        return line.startswith("❓") or line.startswith("Вопрос:") or line.startswith("? ")
+
+    def _is_scenario(line: str) -> bool:
+        line = line.strip()
+        return line.startswith("Сценарий ") and ":" in line
+
+    # Phase 1: group by major headers
+    groups: list[list[str]] = []
+    current_group: list[str] = []
     for line in lines:
-        if _is_header(line):
-            if current_block:
-                blocks.append('\n'.join(current_block).strip())
-            current_block = [line]
+        stripped = line.strip()
+        if _is_major_header(stripped):
+            if current_group:
+                groups.append(current_group)
+            current_group = [line]
         else:
-            current_block.append(line)
-    if current_block:
-        blocks.append('\n'.join(current_block).strip())
+            current_group.append(line)
+    if current_group:
+        groups.append(current_group)
 
-    # Second: inside each block, split by FAQ markers if present
-    final_blocks: list[str] = []
-    for block in blocks:
-        if '❓' in block or 'Вопрос:' in block or '\nQ:' in block:
-            parts = re.split(r'(?=\n?\s*❓|\nВопрос:|\nQ:)', block)
-            final_blocks.extend(p.strip() for p in parts if p.strip())
-        else:
-            final_blocks.append(block)
+    # Phase 2: process each group
+    chunks: list[str] = []
+    pending_empty_header: str | None = None
 
-    # Merge small blocks with neighbors until we hit max_chunk_size
-    merged: list[str] = []
-    current = ""
-    for block in final_blocks:
-        if not current:
-            current = block
-        elif len(current) + len(block) + 2 <= max_chunk_size:
-            current += "\n\n" + block
-        else:
-            merged.append(current)
-            current = block
-    if current:
-        merged.append(current)
+    for group in groups:
+        header = group[0].strip()
+        body = group[1:]
 
-    # Split oversized blocks by sentences
-    result: list[str] = []
-    for chunk in merged:
-        if len(chunk) <= max_chunk_size:
-            result.append(chunk)
-            continue
-        sentences = re.split(r'(?<=[.!?])\s+', chunk)
-        current = ""
-        for sent in sentences:
-            if len(current) + len(sent) + 1 <= max_chunk_size:
-                current += (" " if current else "") + sent
+        if not body or not any(b.strip() for b in body):
+            # Empty group — merge header with next group
+            if pending_empty_header:
+                pending_empty_header += " | " + header
             else:
-                if current:
-                    result.append(current.strip())
-                current = sent
-        if current:
-            result.append(current.strip())
+                pending_empty_header = header
+            continue
+
+        if pending_empty_header:
+            header = pending_empty_header + " | " + header
+            pending_empty_header = None
+
+        # Rebuild body text and split into sub-blocks
+        sub_blocks: list[tuple[str, str]] = []
+        current_sub: list[str] = []
+        for line in body:
+            stripped = line.strip()
+            if _is_faq(stripped) or _is_scenario(stripped):
+                if current_sub:
+                    sub_blocks.append(("\n".join(current_sub).strip(), "content"))
+                    current_sub = []
+                sub_blocks.append((line, "faq" if _is_faq(stripped) else "scenario"))
+            else:
+                current_sub.append(line)
+        if current_sub:
+            sub_blocks.append(("\n".join(current_sub).strip(), "content"))
+
+        # Build FAQ pairs and scenario blocks
+        faq_pairs: list[str] = []
+        i = 0
+        while i < len(sub_blocks):
+            block, btype = sub_blocks[i]
+            if btype == "faq":
+                answer_parts: list[str] = []
+                j = i + 1
+                while j < len(sub_blocks) and sub_blocks[j][1] == "content":
+                    answer_parts.append(sub_blocks[j][0])
+                    j += 1
+                answer = "\n".join(answer_parts).strip()
+                faq_pairs.append(f"{block}\n{answer}" if answer else block)
+                i = j
+            elif btype == "scenario":
+                scenario_parts = [block]
+                j = i + 1
+                while j < len(sub_blocks) and sub_blocks[j][1] == "content":
+                    scenario_parts.append(sub_blocks[j][0])
+                    j += 1
+                chunks.append("\n".join(scenario_parts).strip())
+                i = j
+            else:
+                i += 1
+
+        # Collect plain content blocks not absorbed by FAQ/scenario
+        plain_blocks: list[str] = []
+        i = 0
+        while i < len(sub_blocks):
+            block, btype = sub_blocks[i]
+            if btype == "content":
+                plain_blocks.append(block)
+                i += 1
+            elif btype == "faq":
+                j = i + 1
+                while j < len(sub_blocks) and sub_blocks[j][1] == "content":
+                    j += 1
+                i = j
+            elif btype == "scenario":
+                j = i + 1
+                while j < len(sub_blocks) and sub_blocks[j][1] == "content":
+                    j += 1
+                i = j
+
+        plain_text = "\n\n".join(b for b in plain_blocks if b).strip()
+        if plain_text:
+            header_content = f"{header}\n\n{plain_text}"
+            if len(header_content) <= max_chunk_size:
+                chunks.append(header_content)
+            else:
+                paragraphs = [p.strip() for p in plain_text.split("\n\n") if p.strip()]
+                current = header
+                for para in paragraphs:
+                    candidate = f"{current}\n\n{para}" if current != header else f"{header}\n\n{para}"
+                    if len(candidate) <= max_chunk_size:
+                        current = candidate
+                    else:
+                        if current and current != header:
+                            chunks.append(current.strip())
+                        current = f"{header}\n\n{para}"
+                if current and current != header:
+                    chunks.append(current.strip())
+
+        for pair in faq_pairs:
+            chunks.append(pair)
+
+    if pending_empty_header:
+        chunks.append(pending_empty_header)
+
+    # Clean up: deduplicate while preserving order
+    seen: set[str] = set()
+    result: list[str] = []
+    for c in chunks:
+        c = c.strip()
+        if c and c not in seen:
+            seen.add(c)
+            result.append(c)
     return result
 
 
