@@ -97,9 +97,8 @@ async def schedule_delayed_processing(
     # Revoke previous Celery task if one exists
     old_task_id = await redis.get(redis_key)
     if old_task_id:
-        process_delayed_message.app.control.revoke(
-            old_task_id.decode(), terminate=False
-        )
+        old_task_id_str = old_task_id.decode() if isinstance(old_task_id, bytes) else old_task_id
+        process_delayed_message.app.control.revoke(old_task_id_str, terminate=False)
 
     await redis.setex(redis_key, debounce_seconds + 5, task_id)
 
