@@ -15,8 +15,9 @@ from app.modules.rag_knowledge_base.service import search_knowledge_with_scores
 
 logger = structlog.get_logger()
 
-# Cosine distance threshold: lower = more similar. > 0.35 = low confidence.
-RAG_CONFIDENCE_THRESHOLD = 0.35
+# Cosine distance threshold: lower = more similar.
+# Yandex Embeddings 256-dim: 0.45 is a practical cutoff for medical content.
+RAG_CONFIDENCE_THRESHOLD = 0.45
 
 
 def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
@@ -87,9 +88,20 @@ async def generate_response(
         faq_text = "\n\n".join(faq_lines)
 
     # RAG with confidence scores
-    rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=3)
+    rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=5)
     good_chunks = [r for r in rag_results if r["distance"] < RAG_CONFIDENCE_THRESHOLD]
     rag_text = "\n".join(r["content"] for r in good_chunks)
+
+    logger.info(
+        "rag_search_results",
+        tenant_id=tenant_id,
+        dialog_id=dialog_id,
+        query=current_message[:50],
+        chunks_found=len(rag_results),
+        confident_chunks=len(good_chunks),
+        best_distance=rag_results[0]["distance"] if rag_results else None,
+        rag_text_preview=rag_text[:200] if rag_text else None,
+    )
 
     # Sales script context
     sales_script = settings_obj.sales_script_text if settings_obj else ""
@@ -155,9 +167,11 @@ async def generate_response(
             "НЕПРАВИЛЬНО: 'будет стоить [цена]' или 'запишем на [дата], [время]'\n"
             "ПРАВИЛЬНО: 'будет стоить 1500 рублей' или 'Могу предложить завтра в 10:00 или в 14:00'\n\n"
             "КРИТИЧЕСКИЕ ЗАПРЕТЫ (нарушение = увольнение):\n"
-            "- НИКОГДА не придумывай цены, цифры, стоимость, если их нет в скрипте или базе знаний.\n"
+            "- НИКОГДА не придумывай цены, цифры, стоимость. Если цены нет в скрипте или базе знаний — не называй цифру вообще.\n"
             "  НЕПРАВИЛЬНО: 'имплант от 40 000' (если в источниках нет этой цены).\n"
             "  ПРАВИЛЬНО: 'Точную стоимость импланта скажет врач на консультации. Могу записать.'\n"
+            "- НИКОГДА не переноси цену одной услуги на другую. Цена удаления зуба (4000₽) НЕ является ценой импланта.\n"
+            "  Если цена указана для конкретной услуги (например, удаление) — не применяй её к другой услуге (имплант, коронка).\n"
             "- НИКОГДА не говори 'уточню и вернусь', 'спрошу у коллег', 'перезвоню' — ты бот, не можешь этого делать.\n"
             "  ПРАВИЛЬНО: 'Давайте запишем вас на консультацию — врач ответит на все вопросы.'\n"
             "- НИКОГДА не здоровайся ('Здравствуйте', 'Привет') если это не первое сообщение в диалоге.\n"
