@@ -137,6 +137,24 @@ export default function SettingsPage() {
   // Script stages state (stage + script per row)
   const [scriptStages, setScriptStages] = useState<Array<{ stage: string; script: string }>>([]);
 
+  // Parse sales_script_text back into stage+script objects
+  const parseSalesScript = (text: string): Array<{ stage: string; script: string }> => {
+    if (!text) return [];
+    const blocks = text.split(/\n(?=\[)/); // split before each [Stage]
+    const out: Array<{ stage: string; script: string }> = [];
+    for (const block of blocks) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      const match = trimmed.match(/^\[(.*?)\]\n?([\s\S]*)$/);
+      if (match) {
+        out.push({ stage: match[1].trim(), script: match[2].trim() });
+      } else {
+        out.push({ stage: "Скрипт", script: trimmed });
+      }
+    }
+    return out.length ? out : [{ stage: "Скрипт", script: text }];
+  };
+
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
     if (!localToken) {
@@ -151,10 +169,16 @@ export default function SettingsPage() {
         if (res.system_prompt) setGeneratedPrompt(res.system_prompt);
         if (res.faq_items) setFaqItems(res.faq_items);
         // Initialize script stages from backend
-        if (res.script_stages && Array.isArray(res.script_stages)) {
-          setScriptStages(res.script_stages.map((s: string) => ({ stage: s, script: "" })));
+        if (res.script_stages && Array.isArray(res.script_stages) && res.script_stages.length > 0) {
+          const first = res.script_stages[0];
+          if (first && typeof first === 'object' && 'script' in first) {
+            setScriptStages(res.script_stages as Array<{ stage: string; script: string }>);
+          } else {
+            // Old format: array of strings — parse from sales_script_text
+            setScriptStages(parseSalesScript(res.sales_script_text || ""));
+          }
         } else if (res.sales_script_text) {
-          setScriptStages([{ stage: "Скрипт", script: res.sales_script_text }]);
+          setScriptStages(parseSalesScript(res.sales_script_text));
         } else {
           setScriptStages([]);
         }
@@ -194,7 +218,7 @@ export default function SettingsPage() {
         sales_script_text: scriptStages.length > 0
           ? scriptStages.map((s) => `[${s.stage}]\n${s.script}`).join("\n\n")
           : null,
-        script_stages: scriptStages.length > 0 ? scriptStages.map((s) => s.stage) : null,
+        script_stages: scriptStages.length > 0 ? scriptStages : null,
         crm_type: settings.crm_type || null,
         crm_config: settings.crm_config || null,
       });
