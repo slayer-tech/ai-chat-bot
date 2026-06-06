@@ -14,6 +14,31 @@ from app.modules.conversation_memory.service import build_context
 
 logger = structlog.get_logger()
 
+
+def _strip_greetings(text: str) -> str:
+    """Remove Russian greetings from follow-up text."""
+    greetings = (
+        "Здравствуйте! ", "Здравствуйте, ", "Здравствуйте!", "Здравствуйте",
+        "Привет! ", "Привет, ", "Привет!", "Привет",
+        "Добрый день! ", "Добрый день, ", "Добрый день!", "Добрый день",
+        "Доброе утро! ", "Доброе утро, ", "Доброе утро!", "Доброе утро",
+        "Добрый вечер! ", "Добрый вечер, ", "Добрый вечер!", "Добрый вечер",
+        "Доброго времени суток! ", "Доброго времени суток, ", "Доброго времени суток!", "Доброго времени суток",
+        "Здравствуй! ", "Здравствуй, ", "Здравствуй!", "Здравствуй",
+        "Приветствую! ", "Приветствую, ", "Приветствую!", "Приветствую",
+        "Салют! ", "Салют, ", "Салют!", "Салют",
+    )
+    text = text.strip()
+    for greeting in greetings:
+        if text.startswith(greeting):
+            text = text[len(greeting):].strip()
+            break
+    # Ensure first letter is uppercase
+    if text:
+        text = text[0].upper() + text[1:]
+    return text
+
+
 # Default follow-up scenarios (Russian)
 DEFAULT_TRIGGERS: dict[str, dict[str, Any]] = {
     "new_lead_30min": {
@@ -285,12 +310,6 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                     max_tokens=150,
                 )
                 text_plain = resp["choices"][0]["message"]["content"].strip()
-                # Strip greetings from follow-ups (should not happen, but guard against it)
-                for greeting in ("Здравствуйте! ", "Здравствуйте, ", "Здравствуйте!", "Здравствуйте", "Привет! ", "Привет, ", "Привет!", "Привет", "Добрый день! ", "Добрый день, ", "Добрый день!", "Добрый день", "Доброе утро! ", "Добрый вечер! "):
-                    if text_plain.startswith(greeting):
-                        text_plain = text_plain[len(greeting):].strip()
-                        break
-                text_plain = text_plain[0].upper() + text_plain[1:] if text_plain else ""
                 logger.info("followup_generated", trigger_id=trig.id, dialog_id=dialog.id, text_preview=text_plain[:50])
             except Exception as exc:
                 logger.error("followup_generation_failed", trigger_id=trig.id, error=str(exc))
@@ -300,6 +319,9 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         if not text_plain:
             text_plain = cfg.get("fallback_text", "Подскажите, остались ли вопросы?")
             logger.info("followup_using_fallback", trigger_id=trig.id, dialog_id=dialog.id)
+
+        # Strip greetings from ALL follow-up texts (custom text, LLM, or fallback)
+        text_plain = _strip_greetings(text_plain)
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
         if not dialog.channel_id:
@@ -380,6 +402,9 @@ async def process_inactive_dialogs(db: AsyncSession) -> None:
         text_plain = cfg.get("text", "").strip()
         if not text_plain:
             text_plain = cfg.get("fallback_text", "Мы давно не общались. Есть вопросы, на которые могу помочь?")
+
+        # Strip greetings from inactive follow-ups too
+        text_plain = _strip_greetings(text_plain)
 
         wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
         if not dialog.channel_id or not wazzup_key:
