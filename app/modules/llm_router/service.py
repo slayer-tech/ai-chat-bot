@@ -18,7 +18,7 @@ logger = structlog.get_logger()
 # Cosine distance threshold: lower = more similar.
 # Yandex Embeddings 256-dim: practical cutoff ~0.60 for medical content.
 # Debug endpoint /api/v1/admin/knowledge/search shows actual distances.
-RAG_CONFIDENCE_THRESHOLD = 0.60
+RAG_CONFIDENCE_THRESHOLD = 0.72
 
 
 def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
