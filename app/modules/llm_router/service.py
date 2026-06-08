@@ -95,7 +95,7 @@ async def generate_response(
 
     # Sales script context — truncated to keep prompt cheap
     sales_script = settings_obj.sales_script_text if settings_obj else ""
-    sales_script_snippet = sales_script[:2000] if sales_script else ""
+    sales_script_snippet = sales_script[:4000] if sales_script else ""
 
     # Script stages
     script_stages = settings_obj.script_stages if settings_obj else None
@@ -198,8 +198,9 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
-    # Smart model switching: Lite for RAG-based queries (cheap), Pro for sales/complex
-    use_lite = bool(good_chunks) and bool(rag_text.strip())
+    # Smart model switching: Lite only for pure FAQ bots without sales script.
+    # If tenant has a sales script — always Pro (sales requires quality).
+    use_lite = bool(good_chunks) and bool(rag_text.strip()) and not bool(sales_script_snippet.strip())
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
         model="yandexgpt-lite" if use_lite else "yandexgpt",
