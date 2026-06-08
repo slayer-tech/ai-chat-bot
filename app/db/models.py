@@ -313,3 +313,58 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class DialogStage(Base):
+    __tablename__ = "dialog_stages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_start: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_end: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class StageTransition(Base):
+    __tablename__ = "stage_transitions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_stage_id: Mapped[int] = mapped_column(
+        ForeignKey("dialog_stages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_stage_id: Mapped[int] = mapped_column(
+        ForeignKey("dialog_stages.id", ondelete="CASCADE"), nullable=False
+    )
+    condition_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="default"
+    )
+    condition_value: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class StageAction(Base):
+    __tablename__ = "stage_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    stage_id: Mapped[int] = mapped_column(
+        ForeignKey("dialog_stages.id", ondelete="CASCADE"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
