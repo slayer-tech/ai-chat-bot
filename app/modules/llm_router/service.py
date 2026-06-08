@@ -77,17 +77,6 @@ async def generate_response(
             "Answer concisely, professionally, and in Russian."
         )
 
-    # FAQ context
-    faq_text = ""
-    if settings_obj and settings_obj.faq_items:
-        faq_lines = []
-        for item in settings_obj.faq_items:
-            q = item.get("question", "")
-            a = item.get("answer", "")
-            if q and a:
-                faq_lines.append(f"В: {q}\nО: {a}")
-        faq_text = "\n\n".join(faq_lines)
-
     # RAG with confidence scores — top 3 chunks to keep prompt short and cheap
     rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=3)
     good_chunks = [r for r in rag_results if r["distance"] < RAG_CONFIDENCE_THRESHOLD]
@@ -115,7 +104,7 @@ async def generate_response(
         stages_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(script_stages))
 
     # Check confidence if required:
-    has_primary_source = bool(sales_script_snippet.strip()) or bool(faq_text.strip())
+    has_primary_source = bool(sales_script_snippet.strip())
     has_confident_rag = bool(good_chunks)
     if require_confidence and not has_primary_source and not has_confident_rag:
         if rag_results:
@@ -199,14 +188,9 @@ async def generate_response(
         "ЕСЛИ КЛИЕНТ ПРОСИТ УДАЛИТЬ ДАННЫЕ — [DELETE_REQUEST]."
     )
 
-    # Embed RAG/FAQ directly into system prompt for higher priority vs sales script
-    sources_text = ""
+    # Embed RAG directly into system prompt for higher priority vs sales script
     if rag_text and rag_text.strip():
-        sources_text += f"\n\n[БАЗА ЗНАНИЙ (релевантные фрагменты)]\n{rag_text}\n"
-    if faq_text and faq_text.strip():
-        sources_text += f"\n[FAQ]\n{faq_text}\n"
-    if sources_text:
-        full_system += sources_text
+        full_system += f"\n\n[БАЗА ЗНАНИЙ (релевантные фрагменты)]\n{rag_text}\n"
 
     messages: list[dict[str, str]] = []
     if full_system:

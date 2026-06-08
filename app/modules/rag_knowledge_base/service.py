@@ -1,11 +1,14 @@
 """RAG knowledge base with Yandex Embeddings (256-dim) + pgvector."""
 
+import hashlib
+import json
 from typing import Any, Optional
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.redis_client import get_redis
 from app.clients.yandex_embeddings import yandex_embeddings_client
 from app.db.models import KnowledgeBaseChunk, KnowledgeBaseDoc
 
@@ -35,6 +38,18 @@ async def search_knowledge_with_scores(
         List of dicts: [{"content": str, "distance": float}, ...]
         distance is cosine distance (0 = identical, 1 = completely different)
     """
+    query_hash = hashlib.md5(query.encode("utf-8")).hexdigest()
+    cache_key = f"rag:{tenant_id}:{query_hash}"
+
+    try:
+        redis = await get_redis()
+        cached = await redis.get(cache_key)
+        if cached:
+            logger.info("rag_cache_hit", tenant_id=tenant_id, query=query[:50])
+            return json.loads(cached)
+    except Exception as exc:
+        logger.warning("rag_redis_cache_error", error=str(exc))
+
     try:
         embeddings = await yandex_embeddings_client.embed([query], model_type="text-search-query")
         vector = embeddings[0]
@@ -57,7 +72,15 @@ async def search_knowledge_with_scores(
         .limit(top_k)
     )
     rows = result.all()
-    return [{"content": row.content, "distance": float(row.distance)} for row in rows]
+    results = [{"content": row.content, "distance": float(row.distance)} for row in rows]
+
+    try:
+        redis = await get_redis()
+        await redis.setex(cache_key, 3600, json.dumps(results))
+    except Exception as exc:
+        logger.warning("rag_redis_cache_set_error", error=str(exc))
+
+    return results
 
 
 async def add_document(
