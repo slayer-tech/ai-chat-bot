@@ -88,8 +88,8 @@ async def generate_response(
                 faq_lines.append(f"В: {q}\nО: {a}")
         faq_text = "\n\n".join(faq_lines)
 
-    # RAG with confidence scores
-    rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=5)
+    # RAG with confidence scores — top 3 chunks to keep prompt short and cheap
+    rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=3)
     good_chunks = [r for r in rag_results if r["distance"] < RAG_CONFIDENCE_THRESHOLD]
     rag_text = "\n".join(r["content"] for r in good_chunks)
 
@@ -104,9 +104,9 @@ async def generate_response(
         rag_text_preview=rag_text[:200] if rag_text else None,
     )
 
-    # Sales script context
+    # Sales script context — truncated to keep prompt cheap
     sales_script = settings_obj.sales_script_text if settings_obj else ""
-    sales_script_snippet = sales_script[:6000] if sales_script else ""
+    sales_script_snippet = sales_script[:2000] if sales_script else ""
 
     # Script stages
     script_stages = settings_obj.script_stages if settings_obj else None
@@ -156,17 +156,8 @@ async def generate_response(
             f"{sales_script_snippet}\n\n"
             "ВАЖНО: Это не готовые сообщения для копирования — это инструкции, которые ты должен понять и применить. "
             "Пиши своими словами, адаптируя под каждого клиента. Не повторяй инструкции дословно — используй их как руководство.\n\n"
-            "ПРАВИЛО ПЛЕЙСХОЛДЕРОВ: В скрипте есть плейсхолдеры в квадратных скобках [имя], [цена], [дата], [время] и т.д. "
-            "Ты НИКОГДА не должен выводить клиенту текст в квадратных скобках. Это ЗАПРЕЩЕНО.\n"
-            "Варианты действий:\n"
-            "1. Если значение известно из диалога или базы знаний — подставь реальное значение (например: '1500 руб.' вместо [цена]).\n"
-            "2. Если значение неизвестно:\n"
-            "   - [имя] — просто не используй обращение, пиши без имени.\n"
-            "   - [цена] — предложи запись на консультацию: 'Давайте запишем на консультацию — врач назовет точную стоимость.'\n"
-            "   - [дата]/[время] — предложи конкретные варианты или спроси: 'Завтра в 10:00 или в 14:00 удобно?'\n"
-            "3. Если клиент просит предложить варианты — предложи конкретные (например: 'Завтра в 10:00 или в 14:00').\n\n"
-            "НЕПРАВИЛЬНО: 'будет стоить [цена]' или 'запишем на [дата], [время]'\n"
-            "ПРАВИЛЬНО: 'будет стоить 1500 рублей' или 'Могу предложить завтра в 10:00 или в 14:00'\n\n"
+            "ПРАВИЛО ПЛЕЙСХОЛДЕРОВ: Не выводи клиенту текст в квадратных скобках [имя], [цена], [дата]. "
+            "Подставляй реальные значения из диалога/RAG. Если неизвестно — предложи запись или конкретные варианты.\n\n"
             "КРИТИЧЕСКИЕ ЗАПРЕТЫ (нарушение = увольнение):\n"
             "- НИКОГДА не придумывай цены и НЕ гадай. НО: если цена точно указана в базе знаний (RAG) или FAQ — назови её.\n"
             "  ПРАВИЛЬНО (цена есть в RAG): 'Консультация бесплатная при записи через сайт или WhatsApp.'\n"
@@ -199,21 +190,13 @@ async def generate_response(
         )
 
     full_system += (
-        "\n\nПРАВИЛО РАБОТЫ С ИСТОЧНИКАМИ (иерархия приоритетов):\n"
-        "1. Если ответ есть в базе знаний (RAG) или FAQ — отвечай из них. Это приоритет №1. НЕ игнорируй RAG ради скрипта продаж.\n"
-        "2. Информационные вопросы (цена консультации, Wi-Fi, адрес, время работы, длительность приёма, как добраться) — "
-        "   это НОРМАЛЬНЫЕ вопросы по теме клиники, отвечай из базы знаний. НЕ считай их off-topic.\n"
-        "3. Если вопрос по теме продукта/услуги, но ответа нет в источниках — "
-        "   начни сообщение с тега [UNSURE] и кратко предложи уточнить у менеджера.\n"
-        "4. Если вопрос явно не про клинику (погода, политика, спорт, математика) — "
-        "   добавь тег [OFF_TOPIC] и мягко верни к теме.\n"
-        "5. Не придумывай факты, которых нет в источниках.\n\n"
-        "ПРИМЕРЫ:\n"
-        "- Клиент: 'Сколько стоит консультация?' | RAG: 'Консультация стоматолога: Бесплатно' → Бот: 'Консультация бесплатная, если записаться через сайт или WhatsApp.'\n"
-        "- Клиент: 'Есть ли Wi-Fi?' | RAG: 'Wi-Fi: да, бесплатно, пароль dental2024' → Бот: 'Да, бесплатный Wi-Fi. Пароль: dental2024.'\n"
-        "- Клиент: 'Сколько стоит имплант?' | RAG нет точной цены → Бот: 'Точную стоимость импланта скажет врач на консультации. Могу записать.'\n\n"
-        "ЕСЛИ КЛИЕНТ ПРОСИТ УДАЛИТЬ ЕГО ДАННЫЕ — "
-        "начни сообщение с тега [DELETE_REQUEST] и подтверди, что данные будут удалены."
+        "\n\nПРАВИЛО РАБОТЫ С ИСТОЧНИКАМИ:\n"
+        "1. Отвечай из базы знаний (RAG) или FAQ — приоритет №1.\n"
+        "2. Информационные вопросы (цена, Wi-Fi, адрес, время) — нормальные, отвечай из базы.\n"
+        "3. Нет ответа в источниках — [UNSURE], предложи уточнить.\n"
+        "4. Off-topic (погода, политика) — [OFF_TOPIC], верни к теме.\n"
+        "5. Не придумывай. Если цена есть в RAG — назови. Если нет — предложи консультацию.\n\n"
+        "ЕСЛИ КЛИЕНТ ПРОСИТ УДАЛИТЬ ДАННЫЕ — [DELETE_REQUEST]."
     )
 
     # Embed RAG/FAQ directly into system prompt for higher priority vs sales script
@@ -231,10 +214,11 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
-    # Use YandexGPT Pro for client-facing responses (higher quality)
+    # Smart model switching: Lite for RAG-based queries (cheap), Pro for sales/complex
+    use_lite = bool(good_chunks) and bool(rag_text.strip())
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
-        model="yandexgpt",
+        model="yandexgpt-lite" if use_lite else "yandexgpt",
         temperature=0.7,
         max_tokens=1000,
     )
