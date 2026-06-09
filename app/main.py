@@ -10,12 +10,14 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.security import get_password_hash
+from app.core.rate_limit import RateLimitMiddleware
 from app.db.base import Base
 from app.db.models import TenantAdmin
 from app.db.session import AsyncSessionLocal, engine
 from app.modules.admin_dashboard.router import super_dashboard, tenant_dashboard
 from app.modules.channels.router import router as webhook_router
 from app.modules.crm_adapter.router import router as crm_webhook_router
+from app.modules.dialog_stages.router import router as dialog_stages_router
 from app.modules.rag_knowledge_base.router import router as kb_router
 from app.modules.tenants.router import admin_router, router as auth_router, super_router
 from app.clients.redis_client import close_redis
@@ -57,14 +59,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — SECURITY: never allow credentials with wildcard origins
+if settings.FRONTEND_URL:
+    origins = [settings.FRONTEND_URL]
+else:
+    origins = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=bool(settings.FRONTEND_URL),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Tenant-ID", "X-Refresh-Token"],
 )
+
+# Rate limiting
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.middleware("http")
@@ -73,8 +83,10 @@ async def security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     return response
 
 
@@ -96,6 +108,7 @@ app.include_router(tenant_dashboard)
 app.include_router(webhook_router)
 app.include_router(crm_webhook_router)
 app.include_router(kb_router)
+app.include_router(dialog_stages_router)
 
 
 @app.get("/health")

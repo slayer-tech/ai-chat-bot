@@ -129,4 +129,19 @@ export const api = {
     fetchJson<{ status: string }>("/api/v1/admin/register-wazzup-webhook", {
       method: "POST",
     }),
+
+  dialogStages: () =>
+    fetchJson<Array<{ id: number; name: string; label: string; system_prompt: string | null; order_index: number; is_start: boolean; is_end: boolean; created_at: string }>>("/api/v1/admin/dialog-stages"),
+
+  seedDialogStages: () =>
+    fetchJson<{ status: string; created?: number }>("/api/v1/admin/dialog-stages/seed", { method: "POST" }),
+
+  createDialogStage: (data: Record<string, any>) =>
+    fetchJson<{ id: number }>("/api/v1/admin/dialog-stages", { method: "POST", body: JSON.stringify(data) }),
+
+  updateDialogStage: (stageId: number, data: Record<string, any>) =>
+    fetchJson<{ id: number }>(`/api/v1/admin/dialog-stages/${stageId}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  deleteDialogStage: (stageId: number) =>
+    fetchJson<{ status: string }>(`/api/v1/admin/dialog-stages/${stageId}`, { method: "DELETE" }),
 };

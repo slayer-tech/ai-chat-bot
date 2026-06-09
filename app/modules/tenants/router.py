@@ -4,7 +4,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +51,22 @@ logger = structlog.get_logger()
 class SuperAdminSetup(BaseModel):
     email: str
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        import re
+        if len(v) < 10:
+            raise ValueError("Password must be at least 10 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=[\]\\;/`~]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
 from app.clients.redis_client import get_redis
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
@@ -282,12 +298,14 @@ async def put_admin_settings(
     settings = await update_tenant_settings(db, tenant_id, data)
 
     # Auto-register Wazzup webhook if API key is present
-    if settings.wazzup_api_key:
+    from app.modules.tenants.service import get_decrypted_wazzup_api_key
+    decrypted_key = await get_decrypted_wazzup_api_key(db, tenant_id)
+    if decrypted_key:
         from app.clients.wazzup_client import wazzup_client
         base = str(request.base_url).rstrip("/").replace("http://", "https://")
         webhook_url = f"{base}/webhook/wazzup/{tenant_id}"
         try:
-            await wazzup_client.set_webhook(settings.wazzup_api_key, webhook_url)
+            await wazzup_client.set_webhook(decrypted_key, webhook_url)
             logger.info("wazzup_webhook_auto_registered", tenant_id=tenant_id, webhook_url=webhook_url)
         except Exception as exc:
             logger.warning("wazzup_webhook_auto_register_failed", tenant_id=tenant_id, error=str(exc))
@@ -304,10 +322,10 @@ async def register_wazzup_webhook_manual(
 ) -> dict[str, str]:
     """Trigger Wazzup webhook registration for this tenant."""
     from app.clients.wazzup_client import wazzup_client
-    from app.modules.tenants.service import get_tenant_settings
+    from app.modules.tenants.service import get_decrypted_wazzup_api_key
 
-    tenant_settings = await get_tenant_settings(db, tenant_id)
-    if not tenant_settings or not tenant_settings.wazzup_api_key:
+    decrypted_key = await get_decrypted_wazzup_api_key(db, tenant_id)
+    if not decrypted_key:
         raise HTTPException(status_code=400, detail="Wazzup API key not configured")
 
     # Build webhook URL from the incoming request's public origin
@@ -316,7 +334,7 @@ async def register_wazzup_webhook_manual(
     webhook_url = f"{base}/webhook/wazzup/{tenant_id}"
 
     try:
-        result = await wazzup_client.set_webhook(tenant_settings.wazzup_api_key, webhook_url)
+        result = await wazzup_client.set_webhook(decrypted_key, webhook_url)
         return {"status": "ok", "wazzup_response": str(result), "webhook_url": webhook_url}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Wazzup API error: {exc}") from exc

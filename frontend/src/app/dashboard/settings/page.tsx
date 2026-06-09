@@ -137,6 +137,19 @@ export default function SettingsPage() {
   // Script stages state (stage + script per row)
   const [scriptStages, setScriptStages] = useState<Array<{ stage: string; script: string }>>([]);
 
+  // Dialog stages state (state machine)
+  const [dialogStages, setDialogStages] = useState<Array<{
+    id?: number;
+    name: string;
+    label: string;
+    system_prompt: string;
+    order_index: number;
+    is_start: boolean;
+    is_end: boolean;
+  }>>([]);
+  const [dialogStagesLoading, setDialogStagesLoading] = useState(true);
+  const [dialogStagesSaved, setDialogStagesSaved] = useState(false);
+
   // Parse sales_script_text back into stage+script objects
   const parseSalesScript = (text: string): Array<{ stage: string; script: string }> => {
     if (!text) return [];
@@ -194,6 +207,15 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setFollowupsLoading(false));
+    api
+      .dialogStages()
+      .then((res) => {
+        setDialogStages(res || []);
+      })
+      .catch(() => {
+        setDialogStages([]);
+      })
+      .finally(() => setDialogStagesLoading(false));
   }, [router]);
 
   const loadDocs = () => {
@@ -311,6 +333,63 @@ export default function SettingsPage() {
       alert(`Ошибка генерации: ${err.message}`);
     } finally {
       setGeneratingPrompt(false);
+    }
+  };
+
+  const handleSaveDialogStage = async (stage: typeof dialogStages[0], index: number) => {
+    try {
+      if (stage.id) {
+        await api.updateDialogStage(stage.id, {
+          name: stage.name,
+          label: stage.label,
+          system_prompt: stage.system_prompt,
+          order_index: stage.order_index,
+          is_start: stage.is_start,
+          is_end: stage.is_end,
+        });
+      } else {
+        const res = await api.createDialogStage({
+          name: stage.name,
+          label: stage.label,
+          system_prompt: stage.system_prompt,
+          order_index: stage.order_index,
+          is_start: stage.is_start,
+          is_end: stage.is_end,
+        });
+        setDialogStages((items) =>
+          items.map((it, i) => (i === index ? { ...it, id: res.id } : it))
+        );
+      }
+      setDialogStagesSaved(true);
+      setTimeout(() => setDialogStagesSaved(false), 2000);
+    } catch (err: any) {
+      alert("Ошибка сохранения этапа: " + (err.message || "Unknown"));
+    }
+  };
+
+  const handleDeleteDialogStage = async (stage: typeof dialogStages[0], index: number) => {
+    if (!confirm("Удалить этап?")) return;
+    try {
+      if (stage.id) {
+        await api.deleteDialogStage(stage.id);
+      }
+      setDialogStages((items) => items.filter((_, i) => i !== index));
+    } catch (err: any) {
+      alert("Ошибка удаления: " + (err.message || "Unknown"));
+    }
+  };
+
+  const handleSeedDialogStages = async () => {
+    try {
+      const res = await api.seedDialogStages();
+      if (res.status === "ok") {
+        const stages = await api.dialogStages();
+        setDialogStages(stages || []);
+      } else if (res.status === "already_seeded") {
+        alert("Стадии уже существуют. Обновите страницу.");
+      }
+    } catch (err: any) {
+      alert("Ошибка создания стадий: " + (err.message || "Unknown"));
     }
   };
 
@@ -589,6 +668,148 @@ export default function SettingsPage() {
                   </button>
                   {saved && <span className="text-sm text-green-400">Сохранено!</span>}
                 </div>
+              </div>
+
+              {/* ─── Dialog Stages (State Machine) ─── */}
+              <div className="card p-6">
+                <h2 className="text-lg font-medium text-text mb-1">Этапы диалога (воронка)</h2>
+                <p className="text-xs text-muted mb-4">
+                  Управление стадиями разговора. Бот следует воронке от приветствия к записи. Каждая стадия имеет свои инструкции для LLM.
+                </p>
+
+                {dialogStagesLoading ? (
+                  <p className="text-sm text-muted">Загрузка...</p>
+                ) : dialogStages.length === 0 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted">Стадии не созданы. Создайте дефолтные или добавьте вручную.</p>
+                    <button onClick={handleSeedDialogStages} className="btn-primary px-4 py-2 text-sm">
+                      ➕ Создать дефолтные стадии
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {dialogStages.map((stage, idx) => (
+                      <div key={idx} className="border border-border rounded-xl p-4 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs text-muted">Имя (machine)</label>
+                            <input
+                              type="text"
+                              value={stage.name}
+                              onChange={(e) =>
+                                setDialogStages((items) =>
+                                  items.map((it, i) => (i === idx ? { ...it, name: e.target.value } : it))
+                                )
+                              }
+                              placeholder="greeting"
+                              className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted">Название</label>
+                            <input
+                              type="text"
+                              value={stage.label}
+                              onChange={(e) =>
+                                setDialogStages((items) =>
+                                  items.map((it, i) => (i === idx ? { ...it, label: e.target.value } : it))
+                                )
+                              }
+                              placeholder="Приветствие"
+                              className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted">Порядок</label>
+                            <input
+                              type="number"
+                              value={stage.order_index}
+                              onChange={(e) =>
+                                setDialogStages((items) =>
+                                  items.map((it, i) => (i === idx ? { ...it, order_index: parseInt(e.target.value) || 0 } : it))
+                                )
+                              }
+                              className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text mt-1 focus:outline-none focus:border-accent transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted">Промпт для LLM (что делать на этой стадии)</label>
+                          <textarea
+                            value={stage.system_prompt}
+                            onChange={(e) =>
+                              setDialogStages((items) =>
+                                items.map((it, i) => (i === idx ? { ...it, system_prompt: e.target.value } : it))
+                              )
+                            }
+                            rows={3}
+                            placeholder="Поздоровайся, представь клинику..."
+                            className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors resize-y"
+                          />
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={stage.is_start}
+                              onChange={(e) =>
+                                setDialogStages((items) =>
+                                  items.map((it, i) => (i === idx ? { ...it, is_start: e.target.checked } : it))
+                                )
+                              }
+                              className="accent-accent"
+                            />
+                            Стартовая
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={stage.is_end}
+                              onChange={(e) =>
+                                setDialogStages((items) =>
+                                  items.map((it, i) => (i === idx ? { ...it, is_end: e.target.checked } : it))
+                                )
+                              }
+                              className="accent-accent"
+                            />
+                            Финальная
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleSaveDialogStage(stage, idx)}
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+                          >
+                            Сохранить
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDialogStage(stage, idx)}
+                            className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-accent hover:bg-accent-soft/30 transition-colors"
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() =>
+                        setDialogStages((items) => [
+                          ...items,
+                          { name: "", label: "", system_prompt: "", order_index: items.length, is_start: false, is_end: false },
+                        ])
+                      }
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-white/[0.03] hover:text-text transition-colors"
+                    >
+                      + Добавить стадию
+                    </button>
+                  </div>
+                )}
+
+                {dialogStagesSaved && (
+                  <div className="mt-4">
+                    <span className="text-sm text-green-400">Сохранено!</span>
+                  </div>
+                )}
               </div>
 
               {/* ─── Follow-ups ─── */}

@@ -1,6 +1,6 @@
 """Fernet-based PII encryption/decryption."""
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidKey
 
 from app.core.config import settings
 
@@ -10,8 +10,13 @@ _fernet: Fernet | None = None
 def _get_fernet() -> Fernet:
     global _fernet
     if _fernet is None:
-        key = settings.ENCRYPTION_KEY.encode()
-        _fernet = Fernet(key)
+        key = settings.ENCRYPTION_KEY
+        if not key:
+            raise RuntimeError("ENCRYPTION_KEY is not configured")
+        try:
+            _fernet = Fernet(key.encode() if isinstance(key, str) else key)
+        except (InvalidKey, ValueError) as exc:
+            raise RuntimeError(f"ENCRYPTION_KEY is not a valid Fernet key: {exc}")
     return _fernet
 
 

@@ -3,9 +3,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -52,9 +52,16 @@ def create_refresh_token(data: dict[str, Any]) -> str:
 def decode_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT token."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_exp": True, "verify_signature": True},
+        )
         return payload
-    except JWTError as exc:
+    except jwt.ExpiredSignatureError as exc:
+        raise AuthenticationError("Token expired") from exc
+    except jwt.InvalidTokenError as exc:
         raise AuthenticationError("Invalid token") from exc
 
 
@@ -90,29 +97,58 @@ def require_role(*roles: str):
     return role_checker
 
 
+async def _verify_tenant_ownership(
+    user: dict[str, Any], tenant_id: int
+) -> None:
+    """Verify the authenticated user belongs to the requested tenant.
+
+    Superadmins can access any tenant. Tenant admins are restricted
+    to their own tenant.
+    """
+    user_role = user.get("role")
+    user_tenant_id = user.get("tenant_id")
+
+    if user_role == "superadmin":
+        return
+
+    if user_tenant_id is None or int(user_tenant_id) != int(tenant_id):
+        raise AuthorizationError("Access denied: tenant ID mismatch")
+
+
 async def get_current_tenant_id(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(http_bearer),
 ) -> int:
-    """Extract tenant id from X-Tenant-ID header or JWT payload."""
+    """Extract tenant id from X-Tenant-ID header or JWT payload.
+
+    SECURITY: Verifies the authenticated user actually belongs to
+    the requested tenant to prevent IDOR attacks.
+    """
+    # First, get authenticated user
+    user = getattr(request.state, "user", None)
+    if user is None and credentials:
+        try:
+            user = decode_token(credentials.credentials)
+            request.state.user = user
+        except Exception:
+            raise AuthenticationError("Invalid authentication token")
+
+    if user is None:
+        raise AuthenticationError("Authentication required")
+
     header = request.headers.get("X-Tenant-ID")
     if header:
         try:
-            return int(header)
+            tenant_id = int(header)
         except ValueError as exc:
             raise AuthenticationError("Invalid X-Tenant-ID") from exc
-    # Try token directly if request.state.user not set yet
-    if credentials:
-        try:
-            payload = decode_token(credentials.credentials)
-            tenant_id = payload.get("tenant_id")
-            if tenant_id is not None:
-                return int(tenant_id)
-        except Exception:
-            pass
-    # Fallback to request state (set by other dependencies)
-    user = getattr(request.state, "user", None) or {}
+        await _verify_tenant_ownership(user, tenant_id)
+        return tenant_id
+
+    # Try token directly
     tenant_id = user.get("tenant_id")
-    if tenant_id is None:
-        raise AuthenticationError("Tenant identifier missing")
-    return int(tenant_id)
+    if tenant_id is not None:
+        await _verify_tenant_ownership(user, tenant_id)
+        return int(tenant_id)
+
+    raise AuthenticationError("Tenant identifier missing")

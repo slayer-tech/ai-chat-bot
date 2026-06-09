@@ -1,9 +1,10 @@
 """Pydantic schemas for tenants and admins."""
 
+import re
 from datetime import datetime, time as dt_time
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer
+from pydantic import BaseModel, ConfigDict, EmailStr, field_serializer, field_validator
 
 
 class TariffPlanSchema(BaseModel):
@@ -26,6 +27,21 @@ class TenantBase(BaseModel):
 class TenantCreate(TenantBase):
     password: str
     tariff_id: Optional[int] = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if len(v) < 10:
+            raise ValueError("Password must be at least 10 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=[\]\\;/`~]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
 
 
 class TenantUpdate(BaseModel):
@@ -58,6 +74,21 @@ class TenantAdminBase(BaseModel):
 class TenantAdminCreate(TenantAdminBase):
     password: str
     tenant_id: Optional[int] = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if len(v) < 10:
+            raise ValueError("Password must be at least 10 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=[\]\\;/`~]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
 
 
 class TenantAdminSchema(TenantAdminBase):
@@ -103,6 +134,16 @@ class TenantSettingsSchema(BaseModel):
         if isinstance(value, dt_time):
             return value.strftime("%H:%M")
         return value
+
+    @field_serializer("wazzup_api_key")
+    def mask_wazzup_api_key(self, value):
+        """Mask API key in API responses for security."""
+        if not value:
+            return None
+        # Show only last 4 characters
+        if len(value) <= 4:
+            return "****"
+        return "****" + value[-4:]
 
 
 class TenantSettingsUpdate(BaseModel):

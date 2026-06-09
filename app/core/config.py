@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,20 +17,21 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENV: str = "production"
     TIMEZONE: str = "Europe/Moscow"
+    FRONTEND_URL: str = ""
 
     # Database
     POSTGRES_HOST: str = "postgres"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "ai_chat_bot"
     POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/ai_chat_bot"
+    POSTGRES_PASSWORD: str = ""
+    DATABASE_URL: str = ""
 
     # Redis
     REDIS_URL: str = "redis://redis:6379/0"
 
     # JWT
-    JWT_SECRET: str = "change_me"
+    JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -52,6 +54,7 @@ class Settings(BaseSettings):
     AMOCRM_BASE_URL: str = ""
     AMOCRM_ACCESS_TOKEN: str = ""
     BITRIX24_WEBHOOK_URL: str = ""
+    CRM_WEBHOOK_SECRET: str = ""
 
     # Rate limits
     RATE_LIMIT_IP_PER_MINUTE: int = 100
@@ -68,8 +71,27 @@ class Settings(BaseSettings):
     SUPERADMIN_EMAIL: str = ""
     SUPERADMIN_PASSWORD: str = ""
 
+    @model_validator(mode="after")
+    def validate_secrets(self):
+        if self.ENV == "production":
+            if not self.JWT_SECRET or len(self.JWT_SECRET) < 32:
+                raise ValueError("JWT_SECRET must be at least 32 characters in production")
+            if not self.DATABASE_URL:
+                raise ValueError("DATABASE_URL is required in production")
+            if not self.POSTGRES_PASSWORD:
+                raise ValueError("POSTGRES_PASSWORD is required in production")
+            if self.ENCRYPTION_KEY:
+                from cryptography.fernet import Fernet
+                try:
+                    Fernet(self.ENCRYPTION_KEY.encode())
+                except Exception as exc:
+                    raise ValueError(f"ENCRYPTION_KEY is not a valid Fernet key: {exc}")
+        return self
+
     @property
     def sync_database_url(self) -> str:
+        if not self.DATABASE_URL:
+            return ""
         return self.DATABASE_URL.replace("+asyncpg", "")
 
 

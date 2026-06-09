@@ -9,7 +9,7 @@
 - Redis 7 (aioredis, Celery broker)
 - Celery + Celery Beat
 - HTTPX + tenacity (async retry)
-- Pydantic v2, python-jose + passlib
+- Pydantic v2, PyJWT + passlib
 - pytest + pytest-asyncio
 - Docker Compose
 

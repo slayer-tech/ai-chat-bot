@@ -127,26 +127,32 @@ class WazzupClient:
                 logger.error("wazzup_set_webhook_exception", error=str(exc))
                 raise ExternalAPIError("Wazzup webhook registration failed") from exc
 
-    def verify_webhook_signature(self, body: bytes, signature: Optional[str]) -> bool:
-        """Verify Wazzup webhook signature.
+    def verify_webhook_auth(self, authorization: Optional[str], expected_api_key: Optional[str]) -> bool:
+        """Verify Wazzup webhook Authorization header.
+
+        Wazzup does NOT send HMAC signatures. When a crmKey is configured,
+        it echoes back the API key in the Authorization: Bearer <key> header.
 
         Args:
-            body: Raw request body bytes.
-            signature: Signature header value.
+            authorization: Authorization header from the webhook request.
+            expected_api_key: Tenant's Wazzup API key stored in settings.
 
         Returns:
-            True if signature is valid or no secret configured.
+            True if valid or no API key is configured (backwards compatible).
         """
-        import hmac
-        import hashlib
-
-        secret = settings.WAZZUP_WEBHOOK_SECRET
-        if not secret:
+        if not expected_api_key:
+            # If tenant has no API key configured, we cannot verify — allow through
             return True
-        if not signature:
+        if not authorization:
             return False
-        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, signature)
+        # Extract Bearer token
+        parts = authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return False
+        token = parts[1]
+        # Use constant-time comparison to avoid timing attacks
+        import hmac
+        return hmac.compare_digest(token, expected_api_key)
 
 
 wazzup_client = WazzupClient()

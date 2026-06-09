@@ -6,9 +6,10 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.wazzup_client import wazzup_client
 from app.db.session import get_db
 from app.modules.channels.service import save_inbound_message
-from app.modules.tenants.service import get_tenant_settings
+from app.modules.tenants.service import get_decrypted_wazzup_api_key, get_tenant_settings
 from app.tasks.message_processor import schedule_delayed_processing
 
 logger = structlog.get_logger()
@@ -31,6 +32,19 @@ async def wazzup_webhook(
 ) -> dict[str, Any]:
     """Receive inbound messages from Wazzup for a specific tenant."""
     body = await request.body()
+
+    # SECURITY: Verify Wazzup Authorization header.
+    # Wazzup sends back the API key as "Authorization: Bearer <key>" when crmKey is configured.
+    expected_key = await get_decrypted_wazzup_api_key(db, tenant_id)
+    auth_header = request.headers.get("Authorization")
+    if not wazzup_client.verify_webhook_auth(auth_header, expected_key):
+        logger.warning(
+            "wazzup_webhook_auth_failed",
+            tenant_id=tenant_id,
+            has_auth=bool(auth_header),
+            has_expected_key=bool(expected_key),
+        )
+        raise HTTPException(status_code=401, detail="Invalid webhook authorization")
 
     # Parse raw JSON to avoid 422 on unexpected Wazzup payloads
     import json

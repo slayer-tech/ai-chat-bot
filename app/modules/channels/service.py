@@ -35,6 +35,9 @@ async def ensure_dialog(
         await db.commit()
         await db.refresh(dialog)
     if not dialog:
+        # Determine start stage for state machine
+        from app.modules.dialog_stages.service import get_start_stage
+        start_stage = await get_start_stage(db, tenant_id)
         dialog = Dialog(
             tenant_id=tenant_id,
             channel=msg.chatType,
@@ -42,6 +45,7 @@ async def ensure_dialog(
             external_user_id=msg.chatId,
             phone=msg.contact.phone if msg.contact else None,
             name=msg.contact.name if msg.contact else None,
+            current_stage=start_stage.name if start_stage else None,
             last_message_at=datetime.now(timezone.utc),
         )
         db.add(dialog)
@@ -375,9 +379,9 @@ async def process_dialog_response(
     logger.info("dialog_combined_text", dialog_id=dialog_id, combined_text=combined_text[:100], message_count=len(recent_messages), texts=texts)
 
     # Fetch tenant settings for feature toggles
-    from app.modules.tenants.service import get_tenant_settings
+    from app.modules.tenants.service import get_tenant_settings, get_decrypted_wazzup_api_key
     tenant_settings = await get_tenant_settings(db, tenant_id)
-    wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+    wazzup_key = await get_decrypted_wazzup_api_key(db, tenant_id)
 
     # If only voice messages that couldn't be transcribed — send fallback
     if not combined_text:

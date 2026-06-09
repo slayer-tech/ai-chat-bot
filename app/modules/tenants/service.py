@@ -11,6 +11,7 @@ from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.security import get_password_hash, verify_password
 from app.db.models import TariffPlan, Tenant, TenantAdmin, TenantSettings
 from app.schemas.tenant import TenantAdminCreate, TenantCreate, TenantUpdate, TenantSettingsUpdate
+from app.utils.encryption import encrypt_value, decrypt_value
 
 
 async def create_tenant(db: AsyncSession, data: TenantCreate) -> Tenant:
@@ -126,6 +127,17 @@ async def update_tenant_settings(
     from datetime import datetime as _datetime
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # SECURITY: Encrypt wazzup_api_key at rest
+    if "wazzup_api_key" in update_data and update_data["wazzup_api_key"]:
+        try:
+            update_data["wazzup_api_key"] = encrypt_value(update_data["wazzup_api_key"])
+        except Exception:
+            # If encryption is not configured, store as-is (warn in logs)
+            import structlog
+            logger = structlog.get_logger()
+            logger.warning("wazzup_api_key_encryption_failed", tenant_id=tenant_id)
+
     for key, value in update_data.items():
         if key in ("smart_delay_start", "smart_delay_end") and isinstance(value, str):
             value = _datetime.strptime(value, "%H:%M").time()
@@ -133,6 +145,25 @@ async def update_tenant_settings(
     await db.commit()
     await db.refresh(settings)
     return settings
+
+
+async def get_decrypted_wazzup_api_key(
+    db: AsyncSession, tenant_id: int
+) -> Optional[str]:
+    """Fetch and decrypt tenant's Wazzup API key."""
+    tenant_settings = await get_tenant_settings(db, tenant_id)
+    if not tenant_settings or not tenant_settings.wazzup_api_key:
+        return None
+    encrypted = tenant_settings.wazzup_api_key
+    # Heuristic: encrypted values from our encrypt_value() are base64 and ~100+ chars
+    # Plaintext API keys are typically 36-64 chars
+    if len(encrypted) > 80:
+        try:
+            return decrypt_value(encrypted)
+        except Exception:
+            # If decryption fails, maybe it was stored plaintext before migration
+            return encrypted
+    return encrypted
 
 
 async def list_tenants_with_stats(db: AsyncSession) -> list[dict[str, Any]]:

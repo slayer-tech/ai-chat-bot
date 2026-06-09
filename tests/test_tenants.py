@@ -18,7 +18,7 @@ from app.schemas.tenant import TenantCreate, TenantSettingsUpdate
 async def test_create_tenant(db: AsyncSession):
     data = TenantCreate(
         email="new@company.ru",
-        password="pass123",
+        password="TestPass123!",
         company_name="New Co",
         inn="7700000000",
     )
@@ -31,7 +31,7 @@ async def test_create_tenant(db: AsyncSession):
 async def test_create_duplicate_tenant(db: AsyncSession, sample_tenant: Tenant):
     data = TenantCreate(
         email=sample_tenant.email,
-        password="pass123",
+        password="TestPass123!",
         company_name="Dup",
     )
     with pytest.raises(ValidationError):

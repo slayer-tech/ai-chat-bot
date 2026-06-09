@@ -1,5 +1,6 @@
 """Knowledge base upload routes."""
 
+import os
 from io import BytesIO
 from typing import Any
 
@@ -16,16 +17,36 @@ router = APIRouter(prefix="/api/v1/admin", tags=["knowledge_base"])
 
 MAX_KB_DOCS = 10
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_PDF_PAGES = 500
+ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+def _get_safe_extension(filename: str) -> str:
+    """Extract safe file extension without path traversal risk."""
+    base = os.path.basename(filename)
+    # Remove any null bytes
+    base = base.replace("\x00", "")
+    if "." not in base:
+        return ""
+    # Use only the last extension
+    return base.rsplit(".", 1)[-1].lower().strip()
 
 
 def _extract_text(filename: str, content: bytes) -> str:
     """Extract text from PDF, TXT, or DOCX."""
-    ext = filename.split(".")[-1].lower()
+    ext = _get_safe_extension(filename)
     if ext == "txt":
         return content.decode("utf-8", errors="ignore")
     if ext == "pdf":
         from PyPDF2 import PdfReader
         reader = PdfReader(BytesIO(content))
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise ValueError(f"PDF exceeds maximum page limit ({MAX_PDF_PAGES})")
         parts = []
         for page in reader.pages:
             try:
@@ -218,13 +239,28 @@ async def upload_document(
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> dict[str, Any]:
     """Upload a PDF/TXT/DOCX document."""
-    allowed_ext = {".pdf", ".txt", ".docx"}
-    ext = file.filename.split(".")[-1].lower()
-    if f".{ext}" not in allowed_ext:
-        return {"error": "Invalid file type"}
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        return {"error": "File too large (max 10MB)"}
+    # Validate filename and extension
+    ext = _get_safe_extension(file.filename or "")
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: PDF, TXT, DOCX")
+
+    # Validate MIME type if provided
+    if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid content type")
+
+    # SECURITY: Read file with streaming and early size check
+    # to prevent memory exhaustion from huge uploads
+    content = bytearray()
+    chunk_size = 64 * 1024  # 64 KB chunks
+    total_read = 0
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_read += len(chunk)
+        if total_read > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"File too large (max {MAX_FILE_SIZE // (1024 * 1024)}MB)")
+        content.extend(chunk)
 
     # Check document count limit
     doc_count = await db.scalar(

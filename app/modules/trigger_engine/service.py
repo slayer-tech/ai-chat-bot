@@ -323,7 +323,8 @@ async def process_pending_triggers(db: AsyncSession) -> None:
         # Strip greetings from ALL follow-up texts (custom text, LLM, or fallback)
         text_plain = _strip_greetings(text_plain)
 
-        wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+        from app.modules.tenants.service import get_decrypted_wazzup_api_key
+        wazzup_key = await get_decrypted_wazzup_api_key(db, dialog.tenant_id)
         if not dialog.channel_id:
             logger.warning("followup_no_channel_id", dialog_id=dialog.id)
             trig.status = "failed"
@@ -406,7 +407,8 @@ async def process_inactive_dialogs(db: AsyncSession) -> None:
         # Strip greetings from inactive follow-ups too
         text_plain = _strip_greetings(text_plain)
 
-        wazzup_key = tenant_settings.wazzup_api_key if tenant_settings else None
+        from app.modules.tenants.service import get_decrypted_wazzup_api_key
+        wazzup_key = await get_decrypted_wazzup_api_key(db, dialog.tenant_id)
         if not dialog.channel_id or not wazzup_key:
             continue
 

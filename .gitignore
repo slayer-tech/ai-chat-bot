@@ -65,3 +65,6 @@ alembic/versions/__pycache__/
 htmlcov/
 .coverage
 .pytest_cache/
+
+# Project internal log (do not commit)
+PROJECT_LOG.md

@@ -1,7 +1,14 @@
 """Pytest configuration and fixtures."""
 
 import asyncio
+import os
 from typing import AsyncGenerator, Generator
+
+# Set required secrets before importing app config
+os.environ.setdefault("JWT_SECRET", "test_jwt_secret_that_is_at_least_32_chars_long")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_chat_bot_test")
+os.environ.setdefault("POSTGRES_PASSWORD", "postgres")
+os.environ.setdefault("ENV", "test")
 
 import pytest
 import pytest_asyncio
@@ -53,7 +60,7 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
 async def sample_tenant(db: AsyncSession) -> Tenant:
     tenant = Tenant(
         email="test@company.ru",
-        password_hash=get_password_hash("secret"),
+        password_hash=get_password_hash("TestPass123!"),
         company_name="Test LLC",
         inn="7701234567",
         is_active=True,
@@ -69,7 +76,7 @@ async def sample_admin(db: AsyncSession, sample_tenant: Tenant) -> TenantAdmin:
     admin = TenantAdmin(
         tenant_id=sample_tenant.id,
         email="admin@company.ru",
-        password_hash=get_password_hash("adminpass"),
+        password_hash=get_password_hash("TestPass123!"),
         role="tenant_admin",
     )
     db.add(admin)

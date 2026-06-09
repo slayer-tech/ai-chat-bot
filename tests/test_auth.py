@@ -12,7 +12,7 @@ from app.db.models import TenantAdmin
 async def test_login_success(async_client: AsyncClient, sample_admin: TenantAdmin):
     resp = await async_client.post(
         "/api/v1/auth/login",
-        json={"email": sample_admin.email, "password": "adminpass"},
+        json={"email": sample_admin.email, "password": "TestPass123!"},
     )
     assert resp.status_code == 200
     data = resp.json()

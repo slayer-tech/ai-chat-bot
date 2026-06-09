@@ -44,6 +44,29 @@ def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
     return clean, stage_name, script_complete, is_off_topic, delete_request
 
 
+def _build_funnel_overview(stages: list, current_stage_name: Optional[str]) -> str:
+    """Build a funnel overview string for the LLM.
+
+    Example output:
+      ВОРОНКА:
+      1. greeting — Приветствие (ТЕКУЩИЙ)
+      2. diagnosis — Уточнение проблемы
+      3. pricing — Обсуждение цены
+      4. booking — Запись на приём
+      5. closing — Завершение
+    """
+    if not stages:
+        return ""
+    lines = ["ВОРОНКА ПРОДАЖ (веди клиента к записи):"]
+    for idx, stage in enumerate(stages, start=1):
+        label = getattr(stage, "label", str(stage))
+        name = getattr(stage, "name", str(stage))
+        marker = " ⬅ ТЕКУЩИЙ" if name == current_stage_name else ""
+        end_marker = " [ФИНАЛ]" if getattr(stage, "is_end", False) else ""
+        lines.append(f"{idx}. [{name}] {label}{marker}{end_marker}")
+    return "\n".join(lines)
+
+
 async def generate_response(
     db: AsyncSession,
     tenant_id: int,
@@ -51,7 +74,7 @@ async def generate_response(
     current_message: str,
     require_confidence: bool = True,
 ) -> dict[str, any]:
-    """Generate a bot response using GPT-4o with RAG + memory + sales script.
+    """Generate a bot response using GPT-4o with RAG + memory + state machine.
 
     Returns:
         dict with keys: text, stage, script_complete, is_off_topic, delete_request
@@ -66,7 +89,8 @@ async def generate_response(
     )
     dialog_id = dialog.id if dialog else 0
 
-    # Fetch tenant settings
+    # Fetch tenant settings and dialog stages
+    from app.modules.dialog_stages.service import list_stages
     from app.modules.tenants.service import get_tenant_settings
 
     settings_obj = await get_tenant_settings(db, tenant_id)
@@ -76,6 +100,14 @@ async def generate_response(
             "You are a helpful Russian sales assistant. "
             "Answer concisely, professionally, and in Russian."
         )
+
+    # Load state machine stages
+    all_stages = await list_stages(db, tenant_id)
+    current_stage_name = dialog.current_stage if dialog else None
+    current_stage = None
+    if current_stage_name and all_stages:
+        from app.modules.dialog_stages.service import get_stage_by_name
+        current_stage = await get_stage_by_name(db, tenant_id, current_stage_name)
 
     # RAG with confidence scores — top 3 chunks to keep prompt short and cheap
     rag_results = await search_knowledge_with_scores(db, tenant_id, current_message, top_k=3)
@@ -91,20 +123,16 @@ async def generate_response(
         confident_chunks=len(good_chunks),
         best_distance=rag_results[0]["distance"] if rag_results else None,
         rag_text_preview=rag_text[:200] if rag_text else None,
+        current_stage=current_stage_name,
+        stages_count=len(all_stages),
     )
 
     # Sales script context — truncated to keep prompt cheap
     sales_script = settings_obj.sales_script_text if settings_obj else ""
     sales_script_snippet = sales_script[:4000] if sales_script else ""
 
-    # Script stages
-    script_stages = settings_obj.script_stages if settings_obj else None
-    stages_text = ""
-    if script_stages:
-        stages_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(script_stages))
-
     # Check confidence if required:
-    has_primary_source = bool(sales_script_snippet.strip())
+    has_primary_source = bool(sales_script_snippet.strip()) or bool(current_stage)
     has_confident_rag = bool(good_chunks)
     if require_confidence and not has_primary_source and not has_confident_rag:
         if rag_results:
@@ -122,7 +150,7 @@ async def generate_response(
                 dialog_id=dialog_id,
                 query=current_message[:50],
             )
-        return {"text": None, "stage": None, "script_complete": False, "is_off_topic": False}
+        return {"text": None, "stage": None, "script_complete": False, "is_off_topic": False, "delete_request": False}
 
     # Conversation context
     conv_context = await build_context(db, dialog_id)
@@ -135,48 +163,61 @@ async def generate_response(
             "stage": None,
             "script_complete": False,
             "is_off_topic": False,
+            "delete_request": False,
         }
 
-    # Build objection-aware system prompt
+    # Build system prompt
     full_system = system_prompt.strip()
-    if sales_script_snippet:
+
+    # Base guard rails
+    full_system += (
+        "\n\nКРИТИЧЕСКИЕ ЗАПРЕТЫ (нарушение = увольнение):\n"
+        "- НИКОГДА не придумывай цены и НЕ гадай. НО: если цена точно указана в базе знаний (RAG) или FAQ — назови её.\n"
+        "  ПРАВИЛЬНО (цена есть в RAG): 'Консультация бесплатная при записи через сайт или WhatsApp.'\n"
+        "  ПРАВИЛЬНО (цены нет в источниках): 'Точную стоимость скажет врач на консультации. Могу записать.'\n"
+        "  НЕПРАВИЛЬНО: 'имплант от 40 000' (если в источниках нет этой цены).\n"
+        "- НИКОГДА не переноси цену одной услуги на другую.\n"
+        "- НИКОГДА не говори 'уточню и вернусь', 'спрошу у коллег', 'перезвоню' — ты бот, не можешь этого делать.\n"
+        "  ПРАВИЛЬНО: 'Давайте запишем вас на консультацию — врач ответит на все вопросы.'\n"
+        "- НИКОГДА не здоровайся ('Здравствуйте', 'Привет') если это не первое сообщение в диалоге.\n"
+        "- Если клиент спрашивает цену на услугу, которой нет в источниках — направь на консультацию/запись, не называй цифру.\n"
+        "- Не выводи клиенту текст в квадратных скобках [имя], [цена], [дата]. Подставляй реальные значения из диалога/RAG.\n"
+    )
+
+    # Funnel overview (state machine)
+    funnel_overview = _build_funnel_overview(all_stages, current_stage_name)
+    if funnel_overview:
+        full_system += f"\n\n{funnel_overview}\n\n"
+        full_system += (
+            "Твоя задача — вести клиента по воронке к записи (booking) и завершению (closing). "
+            "После каждого ответа добавь тег [STAGE:название_этапа] на новой строке. "
+            "Название этапа должно точно совпадать с именем в квадратных скобках из воронки. "
+            "Если клиент согласился на запись — переходи к [STAGE:booking]. "
+            "Если диалог завершён (запись подтверждена или клиент попрощался) — [STAGE:closing] + [SCRIPT_COMPLETE]."
+        )
+
+    # Current stage prompt
+    if current_stage and current_stage.system_prompt:
+        full_system += (
+            f"\n\n[ТЕКУЩИЙ ЭТАП: {current_stage.label} ({current_stage.name})]\n"
+            f"{current_stage.system_prompt.strip()}\n"
+        )
+    elif sales_script_snippet:
+        # Fallback to legacy sales script if no state machine stages
         full_system += (
             "\n\n[СКРИПТ ПРОДАЖ]\n"
             f"{sales_script_snippet}\n\n"
             "ВАЖНО: Это не готовые сообщения для копирования — это инструкции, которые ты должен понять и применить. "
-            "Пиши своими словами, адаптируя под каждого клиента. Не повторяй инструкции дословно — используй их как руководство.\n\n"
-            "ПРАВИЛО ПЛЕЙСХОЛДЕРОВ: Не выводи клиенту текст в квадратных скобках [имя], [цена], [дата]. "
-            "Подставляй реальные значения из диалога/RAG. Если неизвестно — предложи запись или конкретные варианты.\n\n"
-            "КРИТИЧЕСКИЕ ЗАПРЕТЫ (нарушение = увольнение):\n"
-            "- НИКОГДА не придумывай цены и НЕ гадай. НО: если цена точно указана в базе знаний (RAG) или FAQ — назови её.\n"
-            "  ПРАВИЛЬНО (цена есть в RAG): 'Консультация бесплатная при записи через сайт или WhatsApp.'\n"
-            "  ПРАВИЛЬНО (цены нет в источниках): 'Точную стоимость скажет врач на консультации. Могу записать.'\n"
-            "  НЕПРАВИЛЬНО: 'имплант от 40 000' (если в источниках нет этой цены).\n"
-            "- НИКОГДА не переноси цену одной услуги на другую. Цена удаления зуба (4000₽) НЕ является ценой импланта.\n"
-            "  Если цена указана для конкретной услуги (например, удаление) — не применяй её к другой услуге (имплант, коронка).\n"
-            "- НИКОГДА не говори 'уточню и вернусь', 'спрошу у коллег', 'перезвоню' — ты бот, не можешь этого делать.\n"
-            "  ПРАВИЛЬНО: 'Давайте запишем вас на консультацию — врач ответит на все вопросы.'\n"
-            "- НИКОГДА не здоровайся ('Здравствуйте', 'Привет') если это не первое сообщение в диалоге.\n"
-            "- Если клиент спрашивает цену на услугу, которой нет в источниках — направь на консультацию/запись, не называй цифру.\n\n"
+            "Пиши своими словами, адаптируя под каждого клиента. "
             "Следуй скрипту продаж, но адаптируй под диалог. "
             "Если клиент выражает возражения (дорого, подумаю, не нужно, сравниваю с конкурентами) — "
             "отрабатывай их как опытный продавец: сочувствуй, задавай уточняющие вопросы, "
             "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
         )
-    else:
-        full_system += (
-            "\n\nЕсли клиент выражает возражения (дорого, подумаю, не нужно, сравниваю с конкурентами) — "
-            "отрабатывай их как опытный продавец: сочувствуй, задавай уточняющие вопросы, "
-            "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
-        )
 
-    if stages_text:
-        full_system += (
-            f"\n\n[ЭТАПЫ СКРИПТА]\n{stages_text}\n\n"
-            "Веди клиента по этапам скрипта. Определи текущий этап после каждого ответа. "
-            "После текста ответа добавь тег [STAGE:название_этапа]. "
-            "Если клиент прошёл последний этап — добавь тег [SCRIPT_COMPLETE]."
-        )
+    # Embed RAG directly into system prompt for higher priority vs sales script
+    if rag_text and rag_text.strip():
+        full_system += f"\n\n[БАЗА ЗНАНИЙ (релевантные фрагменты)]\n{rag_text}\n"
 
     full_system += (
         "\n\nПРАВИЛО РАБОТЫ С ИСТОЧНИКАМИ:\n"
@@ -188,19 +229,15 @@ async def generate_response(
         "ЕСЛИ КЛИЕНТ ПРОСИТ УДАЛИТЬ ДАННЫЕ — [DELETE_REQUEST]."
     )
 
-    # Embed RAG directly into system prompt for higher priority vs sales script
-    if rag_text and rag_text.strip():
-        full_system += f"\n\n[БАЗА ЗНАНИЙ (релевантные фрагменты)]\n{rag_text}\n"
-
     messages: list[dict[str, str]] = []
     if full_system:
         messages.append({"role": "system", "content": full_system})
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
-    # Smart model switching: Lite only for pure FAQ bots without sales script.
-    # If tenant has a sales script — always Pro (sales requires quality).
-    use_lite = bool(good_chunks) and bool(rag_text.strip()) and not bool(sales_script_snippet.strip())
+    # Smart model switching: Lite only for pure FAQ bots without sales script/stages.
+    # If tenant has a sales script or state machine — always Pro (sales requires quality).
+    use_lite = bool(good_chunks) and bool(rag_text.strip()) and not bool(sales_script_snippet.strip()) and not bool(all_stages)
     resp = await yandex_gpt_client.chat_completion(
         messages=messages,
         model="yandexgpt-lite" if use_lite else "yandexgpt",
@@ -209,6 +246,20 @@ async def generate_response(
     )
     raw_answer = resp["choices"][0]["message"]["content"].strip()
     clean_text, stage_name, script_complete, is_off_topic, delete_request = _parse_llm_tags(raw_answer)
+
+    # Validate stage_name against known stages; keep current if unknown
+    validated_stage = stage_name
+    if stage_name and all_stages:
+        valid_names = {s.name for s in all_stages}
+        if stage_name not in valid_names:
+            logger.warning(
+                "llm_unknown_stage",
+                tenant_id=tenant_id,
+                dialog_id=dialog_id,
+                stage=stage_name,
+                valid_names=list(valid_names),
+            )
+            validated_stage = current_stage_name
 
     # Post-processing: catch any remaining [placeholder] brackets and replace with fallback
     import re as _re
@@ -242,7 +293,8 @@ async def generate_response(
         "llm_response_generated",
         tenant_id=tenant_id,
         dialog_id=dialog_id,
-        stage=stage_name,
+        stage=validated_stage,
+        raw_stage=stage_name,
         script_complete=script_complete,
         is_off_topic=is_off_topic,
         delete_request=delete_request,
@@ -250,7 +302,7 @@ async def generate_response(
     )
     return {
         "text": clean_text,
-        "stage": stage_name,
+        "stage": validated_stage,
         "script_complete": script_complete,
         "is_off_topic": is_off_topic,
         "delete_request": delete_request,
