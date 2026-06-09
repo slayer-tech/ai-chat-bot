@@ -393,7 +393,16 @@ export default function SettingsPage() {
       const res = await api.seedDialogStages();
       if (res.status === "ok") {
         const stages = await api.dialogStages();
-        setDialogStages(stages || []);
+        const normalized = (stages || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          label: s.label,
+          system_prompt: s.system_prompt || "",
+          order_index: s.order_index,
+          is_start: s.is_start,
+          is_end: s.is_end,
+        }));
+        setDialogStages(normalized);
       } else if (res.status === "already_seeded") {
         alert("Стадии уже существуют. Обновите страницу.");
       }
