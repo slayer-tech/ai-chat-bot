@@ -210,7 +210,16 @@ export default function SettingsPage() {
     api
       .dialogStages()
       .then((res) => {
-        setDialogStages(res || []);
+        const normalized = (res || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          label: s.label,
+          system_prompt: s.system_prompt || "",
+          order_index: s.order_index,
+          is_start: s.is_start,
+          is_end: s.is_end,
+        }));
+        setDialogStages(normalized);
       })
       .catch(() => {
         setDialogStages([]);
