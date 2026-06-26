@@ -500,6 +500,9 @@ async def process_dialog_response(
     if llm_result["stage"]:
         dialog.current_stage = llm_result["stage"]
 
+    # Forced handoff flag (e.g. first contact with complex question and low RAG confidence)
+    force_handoff = llm_result.get("force_handoff", False)
+
     # Data deletion request — GDPR / 152-FZ right to be forgotten
     if llm_result.get("delete_request"):
         logger.info("data_deletion_requested", dialog_id=dialog_id, tenant_id=tenant_id)
@@ -573,27 +576,45 @@ async def process_dialog_response(
         from app.modules.crm_integration.service import handle_script_complete
         await handle_script_complete(db, dialog, summary)
 
+    # CRM: forced handoff after sending engagement message
+    if force_handoff and dialog.status not in ("handoff", "flood", "closed"):
+        dialog.status = "handoff"
+        await db.commit()
+        from app.modules.trigger_engine.service import _cancel_pending_triggers
+        await _cancel_pending_triggers(db, dialog_id)
+        from app.modules.conversation_memory.service import summarize_dialog
+        from app.modules.crm_integration.service import handle_handoff
+        summary = await summarize_dialog(db, dialog_id)
+        await handle_handoff(db, dialog, "first_contact_complex_question", summary)
+        logger.info(
+            "force_handoff_executed",
+            dialog_id=dialog_id,
+            tenant_id=tenant_id,
+            reason="first_contact_complex_question",
+        )
+
     # CRM: flood
     if dialog.status == "flood":
         from app.modules.crm_integration.service import handle_flood
         await handle_flood(db, dialog)
 
-    # Schedule follow-up triggers after bot response
-    from app.modules.trigger_engine.service import schedule_trigger
-    await schedule_trigger(
-        db,
-        tenant_id=tenant_id,
-        dialog_id=dialog_id,
-        trigger_type="no_answer_2h",
-        scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
-    )
-    await schedule_trigger(
-        db,
-        tenant_id=tenant_id,
-        dialog_id=dialog_id,
-        trigger_type="no_answer_24h",
-        scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
-    )
+    # Schedule follow-up triggers after bot response (skip if dialog is already handed off)
+    if dialog.status == "active":
+        from app.modules.trigger_engine.service import schedule_trigger
+        await schedule_trigger(
+            db,
+            tenant_id=tenant_id,
+            dialog_id=dialog_id,
+            trigger_type="no_answer_2h",
+            scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
+        )
+        await schedule_trigger(
+            db,
+            tenant_id=tenant_id,
+            dialog_id=dialog_id,
+            trigger_type="no_answer_24h",
+            scenarios=tenant_settings.followup_scenarios if tenant_settings else None,
+        )
 
     # Billing
     from app.modules.billing.service import log_billing

@@ -65,6 +65,39 @@ async def _handle_llm_failure(db: AsyncSession, dialog: Optional[Dialog], error_
     logger.info("llm_failure_handoff", dialog_id=dialog.id, error=error_text)
 
 
+def _build_first_contact_unsure_prompt(current_message: str) -> str:
+    """Build a prompt for the first message when RAG/script has no confident answer."""
+    return (
+        "Ты — дружелюбный sales-ассистент. Клиент только что написал первое сообщение с вопросом, "
+        "на который у нас пока нет точного ответа в базе знаний.\n\n"
+        "Твоя задача:\n"
+        "1. Показать, что мы тут, внимательно изучаем его вопрос и очень хотим помочь.\n"
+        "2. Если из вопроса можно выделить простые части, на которые ты можешь ответить "
+        "(например, рассказать о компании, формате записи, времени работы) — кратко ответь на них.\n"
+        "3. Задай 1-2 уточняющих вопроса, чтобы лучше понять запрос клиента.\n"
+        "4. Скажи, что сейчас передашь информацию специалисту, который подготовит точный ответ.\n\n"
+        "Требования:\n"
+        "- Не извиняйся излишне и не пиши 'я не знаю'.\n"
+        "- Будь профессиональным, дружелюбным, на русском языке.\n"
+        "- Не обещай скидок или акций.\n"
+        f"\nСообщение клиента: {current_message}"
+    )
+
+
+async def _generate_first_contact_unsure_response(current_message: str) -> str:
+    """Generate an engaging response for a first message without confident knowledge."""
+    prompt = _build_first_contact_unsure_prompt(current_message)
+    resp = await openai_client.chat_completion(
+        messages=[
+            {"role": "system", "content": "Ты — дружелюбный sales-ассистент. Пиши по-человечески, без шаблонов."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.7,
+        max_tokens=300,
+    )
+    return resp["choices"][0]["message"]["content"].strip()
+
+
 def _build_funnel_overview(stages: list, current_stage_name: Optional[str]) -> str:
     """Build a funnel overview string for the LLM.
 
@@ -155,6 +188,7 @@ async def generate_response(
     # Check confidence if required:
     has_primary_source = bool(sales_script_snippet.strip()) or bool(current_stage)
     has_confident_rag = bool(good_chunks)
+    is_first_message = bool(dialog and dialog.message_count <= 1)
     if require_confidence and not has_primary_source and not has_confident_rag:
         if rag_results:
             logger.info(
@@ -171,7 +205,26 @@ async def generate_response(
                 dialog_id=dialog_id,
                 query=current_message[:50],
             )
-        return {"text": None, "stage": None, "script_complete": False, "is_off_topic": False, "delete_request": False}
+        # First contact: engage the user, ask clarifying questions, then hand off.
+        if is_first_message:
+            try:
+                engagement_text = await _generate_first_contact_unsure_response(current_message)
+            except ExternalAPIError as exc:
+                logger.error("first_contact_unsure_generation_failed", error=str(exc))
+                engagement_text = (
+                    "Спасибо за обращение! Я внимательно изучаю ваш вопрос. "
+                    "Чтобы подготовить точный ответ, подскажите, пожалуйста, "
+                    "какая услуга или ситуация вас интересует? Сейчас передам информацию специалисту."
+                )
+            return {
+                "text": engagement_text,
+                "stage": current_stage_name,
+                "script_complete": False,
+                "is_off_topic": False,
+                "delete_request": False,
+                "force_handoff": True,
+            }
+        return {"text": None, "stage": None, "script_complete": False, "is_off_topic": False, "delete_request": False, "force_handoff": False}
 
     # Conversation context
     conv_context = await build_context(db, dialog_id)
@@ -185,6 +238,7 @@ async def generate_response(
             "script_complete": False,
             "is_off_topic": False,
             "delete_request": False,
+            "force_handoff": False,
         }
 
     # Build system prompt
@@ -278,6 +332,7 @@ async def generate_response(
             "script_complete": False,
             "is_off_topic": False,
             "delete_request": False,
+            "force_handoff": True,
         }
     raw_answer = resp["choices"][0]["message"]["content"].strip()
     clean_text, stage_name, script_complete, is_off_topic, delete_request = _parse_llm_tags(raw_answer)
@@ -341,4 +396,5 @@ async def generate_response(
         "script_complete": script_complete,
         "is_off_topic": is_off_topic,
         "delete_request": delete_request,
+        "force_handoff": False,
     }
