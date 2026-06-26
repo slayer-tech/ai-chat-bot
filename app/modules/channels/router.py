@@ -33,7 +33,23 @@ async def wazzup_webhook(
     """Receive inbound messages from Wazzup for a specific tenant."""
     body = await request.body()
 
-    # SECURITY: Verify Wazzup Authorization header.
+    # Parse raw JSON to avoid 422 on unexpected Wazzup payloads
+    import json
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    logger.info("wazzup_webhook_raw", tenant_id=tenant_id, body=data)
+
+    # Respond to Wazzup test ping (sent during webhook registration).
+    # Wazzup does not send the Authorization header on test pings, so we
+    # must accept them before enforcing webhook auth.
+    if data.get("test") is True:
+        logger.info("wazzup_webhook_test_ping", tenant_id=tenant_id)
+        return {"status": "ok"}
+
+    # SECURITY: Verify Wazzup Authorization header for real events.
     # Wazzup sends back the API key as "Authorization: Bearer <key>" when crmKey is configured.
     expected_key = await get_decrypted_wazzup_api_key(db, tenant_id)
     auth_header = request.headers.get("Authorization")
@@ -45,20 +61,6 @@ async def wazzup_webhook(
             has_expected_key=bool(expected_key),
         )
         raise HTTPException(status_code=401, detail="Invalid webhook authorization")
-
-    # Parse raw JSON to avoid 422 on unexpected Wazzup payloads
-    import json
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    logger.info("wazzup_webhook_raw", tenant_id=tenant_id, body=data)
-
-    # Respond to Wazzup test ping (sent during webhook registration)
-    if data.get("test") is True:
-        logger.info("wazzup_webhook_test_ping", tenant_id=tenant_id)
-        return {"status": "ok"}
 
     messages = data.get("messages", [])
     if not isinstance(messages, list):
