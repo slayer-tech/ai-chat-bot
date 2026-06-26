@@ -19,16 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "tenant_settings",
-        sa.Column("target_action", sa.String(length=50), nullable=True),
-    )
-    op.add_column(
-        "tenant_settings",
-        sa.Column("faq_items", sa.JSON(), nullable=True),
-    )
+    # These columns are already added by revision 2026_05_20_0245.
+    # Kept as a no-op marker to preserve the migration chain.
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column("tenant_settings", "faq_items")
-    op.drop_column("tenant_settings", "target_action")
+    pass
