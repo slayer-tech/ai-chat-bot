@@ -5,6 +5,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
+function validatePassword(password: string): string | null {
+  if (password.length < 10) {
+    return "Пароль должен быть не менее 10 символов";
+  }
+  if (!/[A-Z]/.test(password)) {
+    return "Пароль должен содержать хотя бы одну заглавную букву";
+  }
+  if (!/[a-z]/.test(password)) {
+    return "Пароль должен содержать хотя бы одну строчную букву";
+  }
+  if (!/\d/.test(password)) {
+    return "Пароль должен содержать хотя бы одну цифру";
+  }
+  if (!/[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;/`~]/.test(password)) {
+    return "Пароль должен содержать хотя бы один спецсимвол";
+  }
+  return null;
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +40,9 @@ export default function RegisterPage() {
       setError("Пароли не совпадают");
       return;
     }
-    if (password.length < 6) {
-      setError("Пароль должен быть не менее 6 символов");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     setLoading(true);
@@ -79,7 +99,9 @@ export default function RegisterPage() {
                   className="input-premium"
                   required
                 />
-                <p className="mt-1.5 text-xs text-muted">Минимум 6 символов</p>
+                <p className="mt-1.5 text-xs text-muted">
+                  Минимум 10 символов, заглавная, строчная, цифра и спецсимвол
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-text mb-2">
