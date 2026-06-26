@@ -68,3 +68,4 @@ htmlcov/
 
 # Project internal log (do not commit)
 PROJECT_LOG.md
+/backups/
