@@ -81,7 +81,7 @@ It is built from these blocks:
    - Do not greet if it is not the first message.
    - Replace `[placeholders]` with real values.
 3. **Funnel overview** (`_build_funnel_overview`) — list of dialog stages with the current stage marker.
-4. **Current stage prompt** — `system_prompt` of the current `DialogStage`, or legacy sales script.
+4. **Current stage prompt** — `system_prompt` of the current `DialogStage`.
 5. **RAG fragments** — top relevant knowledge-base chunks under the confidence threshold.
 6. **Source handling rules:**
    - Answer from RAG/FAQ first.

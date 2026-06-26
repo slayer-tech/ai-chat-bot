@@ -134,9 +134,6 @@ export default function SettingsPage() {
   // FAQ state
   const [faqItems, setFaqItems] = useState<Array<{ question: string; answer: string }>>([]);
 
-  // Script stages state (stage + script per row)
-  const [scriptStages, setScriptStages] = useState<Array<{ stage: string; script: string }>>([]);
-
   // Dialog stages state (state machine)
   const [dialogStages, setDialogStages] = useState<Array<{
     id?: number;
@@ -149,24 +146,6 @@ export default function SettingsPage() {
   }>>([]);
   const [dialogStagesLoading, setDialogStagesLoading] = useState(true);
   const [dialogStagesSaved, setDialogStagesSaved] = useState(false);
-
-  // Parse sales_script_text back into stage+script objects
-  const parseSalesScript = (text: string): Array<{ stage: string; script: string }> => {
-    if (!text) return [];
-    const blocks = text.split(/\n(?=\[)/); // split before each [Stage]
-    const out: Array<{ stage: string; script: string }> = [];
-    for (const block of blocks) {
-      const trimmed = block.trim();
-      if (!trimmed) continue;
-      const match = trimmed.match(/^\[(.*?)\]\n?([\s\S]*)$/);
-      if (match) {
-        out.push({ stage: match[1].trim(), script: match[2].trim() });
-      } else {
-        out.push({ stage: "Скрипт", script: trimmed });
-      }
-    }
-    return out.length ? out : [{ stage: "Скрипт", script: text }];
-  };
 
   useEffect(() => {
     const localToken = localStorage.getItem("access_token");
@@ -181,20 +160,6 @@ export default function SettingsPage() {
         setSettings(res);
         if (res.system_prompt) setGeneratedPrompt(res.system_prompt);
         if (res.faq_items) setFaqItems(res.faq_items);
-        // Initialize script stages from backend
-        if (res.script_stages && Array.isArray(res.script_stages) && res.script_stages.length > 0) {
-          const first = res.script_stages[0];
-          if (first && typeof first === 'object' && 'script' in first) {
-            setScriptStages(res.script_stages as Array<{ stage: string; script: string }>);
-          } else {
-            // Old format: array of strings — parse from sales_script_text
-            setScriptStages(parseSalesScript(res.sales_script_text || ""));
-          }
-        } else if (res.sales_script_text) {
-          setScriptStages(parseSalesScript(res.sales_script_text));
-        } else {
-          setScriptStages([]);
-        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -256,10 +221,6 @@ export default function SettingsPage() {
         voice_max_duration_seconds: settings.voice_max_duration_seconds ?? 120,
         dialog_message_limit: settings.dialog_message_limit || null,
         data_retention_days: settings.data_retention_days ?? 90,
-        sales_script_text: scriptStages.length > 0
-          ? scriptStages.map((s) => `[${s.stage}]\n${s.script}`).join("\n\n")
-          : null,
-        script_stages: scriptStages.length > 0 ? scriptStages : null,
         crm_type: settings.crm_type || null,
         crm_config: settings.crm_config || null,
       });
@@ -617,72 +578,6 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4 mt-5">
                   <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
                     {saving ? "Сохранение..." : "Сохранить FAQ"}
-                  </button>
-                  {saved && <span className="text-sm text-green-400">Сохранено!</span>}
-                </div>
-              </div>
-
-              {/* ─── Sales Script (Stages + Script table) ─── */}
-              <div className="card p-6">
-                <h2 className="text-lg font-medium text-text mb-1">Скрипт продаж</h2>
-                <p className="text-xs text-muted mb-4">
-                  Добавь этапы и скрипт для каждого этапа. Бот ведёт клиента по порядку. Когда пройдёт последний этап — диалог уйдёт на менеджера.
-                </p>
-                <div className="space-y-3">
-                  {scriptStages.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted">Этап</label>
-                        <input
-                          type="text"
-                          value={item.stage}
-                          onChange={(e) =>
-                            setScriptStages((items) =>
-                              items.map((it, i) => (i === idx ? { ...it, stage: e.target.value } : it))
-                            )
-                          }
-                          placeholder="Приветствие"
-                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted">Скрипт для этапа</label>
-                        <textarea
-                          value={item.script}
-                          onChange={(e) =>
-                            setScriptStages((items) =>
-                              items.map((it, i) => (i === idx ? { ...it, script: e.target.value } : it))
-                            )
-                          }
-                          placeholder="Здравствуйте! Я помогу подобрать..."
-                          rows={3}
-                          className="w-full bg-void border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-muted mt-1 focus:outline-none focus:border-accent transition-colors resize-y"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-3 mt-4">
-                  <button
-                    onClick={() => setScriptStages((items) => [...items, { stage: "", script: "" }])}
-                    className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:bg-white/[0.03] hover:text-text transition-colors"
-                  >
-                    + Добавить этап
-                  </button>
-                  {scriptStages.length > 0 && (
-                    <button
-                      onClick={() => setScriptStages((items) => items.slice(0, -1))}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-accent hover:bg-accent-soft/30 transition-colors"
-                    >
-                      Удалить последний
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4 mt-5">
-                  <button onClick={handleSave} disabled={saving} className="btn-primary px-6">
-                    {saving ? "Сохранение..." : "Сохранить скрипт"}
                   </button>
                   {saved && <span className="text-sm text-green-400">Сохранено!</span>}
                 </div>

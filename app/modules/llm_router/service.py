@@ -181,12 +181,8 @@ async def generate_response(
         stages_count=len(all_stages),
     )
 
-    # Sales script context — truncated to keep prompt cheap
-    sales_script = settings_obj.sales_script_text if settings_obj else ""
-    sales_script_snippet = sales_script[:4000] if sales_script else ""
-
     # Check confidence if required:
-    has_primary_source = bool(sales_script_snippet.strip()) or bool(current_stage)
+    has_primary_source = bool(current_stage)
     has_confident_rag = bool(good_chunks)
     is_first_message = bool(dialog and dialog.message_count <= 1)
     if require_confidence and not has_primary_source and not has_confident_rag:
@@ -276,18 +272,6 @@ async def generate_response(
         full_system += (
             f"\n\n[ТЕКУЩИЙ ЭТАП: {current_stage.label} ({current_stage.name})]\n"
             f"{current_stage.system_prompt.strip()}\n"
-        )
-    elif sales_script_snippet:
-        # Fallback to legacy sales script if no state machine stages
-        full_system += (
-            "\n\n[СКРИПТ ПРОДАЖ]\n"
-            f"{sales_script_snippet}\n\n"
-            "ВАЖНО: Это не готовые сообщения для копирования — это инструкции, которые ты должен понять и применить. "
-            "Пиши своими словами, адаптируя под каждого клиента. "
-            "Следуй скрипту продаж, но адаптируй под диалог. "
-            "Если клиент выражает возражения (дорого, подумаю, не нужно, сравниваю с конкурентами) — "
-            "отрабатывай их как опытный продавец: сочувствуй, задавай уточняющие вопросы, "
-            "покажи ценность, предложи выгоду. Не дави, но будь убедительным."
         )
 
     # Embed RAG directly into system prompt for higher priority vs sales script

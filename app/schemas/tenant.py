@@ -125,7 +125,6 @@ class TenantSettingsSchema(BaseModel):
     debounce_seconds: int = 10
     voice_max_duration_seconds: int = 120
     dialog_message_limit: Optional[int] = None
-    sales_script_text: Optional[str] = None
     script_stages: Optional[list] = None
     data_retention_days: int = 90
 
@@ -168,7 +167,6 @@ class TenantSettingsUpdate(BaseModel):
     debounce_seconds: Optional[int] = None
     voice_max_duration_seconds: Optional[int] = None
     dialog_message_limit: Optional[int] = None
-    sales_script_text: Optional[str] = None
     script_stages: Optional[list] = None
     data_retention_days: Optional[int] = None
 

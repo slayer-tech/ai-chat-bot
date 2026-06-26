@@ -91,7 +91,6 @@ class TenantSettings(Base):
     debounce_seconds: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     voice_max_duration_seconds: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
     dialog_message_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    sales_script_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     script_stages: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     data_retention_days: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
 

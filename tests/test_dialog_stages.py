@@ -183,57 +183,6 @@ async def test_unknown_stage_fallback(db: AsyncSession, sample_tenant):
 
 
 @pytest.mark.asyncio
-async def test_legacy_sales_script_fallback(db: AsyncSession, sample_tenant):
-    """Without dialog stages, system should fallback to sales_script_text."""
-    from app.modules.tenants.service import update_tenant_settings
-    from app.schemas.tenant import TenantSettingsUpdate
-
-    await update_tenant_settings(
-        db,
-        sample_tenant.id,
-        TenantSettingsUpdate(
-            system_prompt="Ты бот",
-            sales_script_text="Приветствуй клиента, узнай проблему, предложи запись.",
-        ),
-    )
-
-    dialog = Dialog(
-        tenant_id=sample_tenant.id,
-        channel="whatsapp",
-        external_user_id="user-4",
-        current_stage=None,
-    )
-    db.add(dialog)
-    await db.commit()
-
-    mock_llm_response = {
-        "choices": [
-            {
-                "message": {
-                    "content": "Привет! Чем помочь?"
-                }
-            }
-        ]
-    }
-
-    with patch("app.modules.llm_router.service.openai_client.chat_completion", new_callable=AsyncMock) as mock_chat:
-        mock_chat.return_value = mock_llm_response
-        result = await generate_response(
-            db, sample_tenant.id, "user-4", "Привет", require_confidence=False
-        )
-
-    call_args = mock_chat.call_args
-    messages = call_args.kwargs.get("messages", call_args[1].get("messages", []))
-    system_msg = messages[0]["content"] if messages else ""
-
-    # Should include legacy sales script
-    assert "[СКРИПТ ПРОДАЖ]" in system_msg
-    assert "Приветствуй клиента" in system_msg
-    # Should NOT have funnel overview (no stages configured)
-    assert "ВОРОНКА ПРОДАЖ" not in system_msg
-
-
-@pytest.mark.asyncio
 async def test_dialog_stages_api_crud(db: AsyncSession, sample_tenant):
     """Test CRUD operations via service layer."""
     # Create
