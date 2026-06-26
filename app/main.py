@@ -12,7 +12,7 @@ from app.core.exceptions import AppException
 from app.core.security import get_password_hash
 from app.core.rate_limit import RateLimitMiddleware
 from app.db.base import Base
-from app.db.models import TenantAdmin
+from app.db.models import Tenant, TenantAdmin
 from app.db.session import AsyncSessionLocal, engine
 from app.modules.admin_dashboard.router import super_dashboard, tenant_dashboard
 from app.modules.channels.router import router as webhook_router
@@ -38,15 +38,25 @@ async def lifespan(app: FastAPI):
             from sqlalchemy import select
             existing = await db.scalar(select(TenantAdmin).where(TenantAdmin.role == "superadmin"))
             if not existing:
+                tenant = await db.scalar(select(Tenant).where(Tenant.email == settings.SUPERADMIN_EMAIL))
+                if not tenant:
+                    tenant = Tenant(
+                        email=settings.SUPERADMIN_EMAIL,
+                        password_hash=get_password_hash(settings.SUPERADMIN_PASSWORD),
+                        company_name="Default",
+                    )
+                    db.add(tenant)
+                    await db.flush()
+                    await db.refresh(tenant)
                 admin = TenantAdmin(
-                    tenant_id=1,
+                    tenant_id=tenant.id,
                     email=settings.SUPERADMIN_EMAIL,
                     password_hash=get_password_hash(settings.SUPERADMIN_PASSWORD),
                     role="superadmin",
                 )
                 db.add(admin)
                 await db.commit()
-                logger.info("superadmin_created", email=admin.email)
+                logger.info("superadmin_created", email=admin.email, tenant_id=tenant.id)
     yield
     # Shutdown
     await close_redis()
