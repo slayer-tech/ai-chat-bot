@@ -9,7 +9,7 @@ import structlog
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.db.models import Dialog, Message
 from app.modules.conversation_memory.service import get_recent_messages, summarize_dialog
 
@@ -52,7 +52,7 @@ async def check_handoff_needed(
         await _do_handoff(db, dialog, reason="two_fallbacks")
         return True
 
-    # 2. Client asks for human (semantic check via YandexGPT Lite)
+    # 2. Client asks for human (semantic check via OpenAI GPT-5.4-mini)
     if intent == "handoff" or await _is_human_request(text):
         await _do_handoff(db, dialog, reason="human_request")
         return True
@@ -81,7 +81,7 @@ async def _is_human_request(text: str) -> bool:
         "Верни строго JSON: {\"is_human_request\": true/false}"
     )
     try:
-        resp = await yandex_gpt_client.chat_completion(
+        resp = await openai_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text},
@@ -101,7 +101,7 @@ async def _is_human_request(text: str) -> bool:
 
 
 async def _is_stalled(db: AsyncSession, dialog_id: int) -> bool:
-    """Check if last 6 messages show no progress via YandexGPT Lite."""
+    """Check if last 6 messages show no progress via OpenAI."""
     messages = await get_recent_messages(db, dialog_id, limit=6)
     if len(messages) < 6:
         return False
@@ -111,7 +111,7 @@ async def _is_stalled(db: AsyncSession, dialog_id: int) -> bool:
         "Верни строго JSON: {\"is_stalled\": true/false}"
     )
     try:
-        resp = await yandex_gpt_client.chat_completion(
+        resp = await openai_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "\n".join(texts)},

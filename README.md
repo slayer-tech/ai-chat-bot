@@ -16,9 +16,9 @@
 ## Запуск
 
 1. Скопируй `.env.example` в `.env` и заполни все ключи:
-   - `GROQ_API_KEY` — временный ключ для тестов (потом заменим на YandexGPT)
-   - `WAZZUP_API_KEY`
-   - `YANDEX_SPEECHKIT_API_KEY` и `FOLDER_ID` (используются и для SpeechKit STT, и для YandexGPT Lite)
+   - `OPENAI_API_KEY` — ключ из https://platform.openai.com/api-keys
+   - `YANDEX_SPEECHKIT_API_KEY` и `YANDEX_SPEECHKIT_FOLDER_ID` из https://yandex.cloud/ru/
+   - `WAZZUP_API_KEY` (каждый тенант может задать свой в Dashboard → Settings)
    - `ENCRYPTION_KEY` — сгенерируй через `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
 2. Подними окружение:
@@ -59,20 +59,23 @@ asyncio.run(main())
 https://your-domain.com/webhook/wazzup
 ```
 
-## Архитектура LLM (тестовый режим)
+## Архитектура LLM
 
-> **Внимание:** Сейчас используется **Groq** (`llama-3.1-8b-instant`) для тестов. Позже перейдём на **YandexGPT 5.1 Pro**.
+- **GPT-5.4-mini** — единственная модель для всех текстовых задач (диалоги, RAG, follow-up, prompt engineering, классификация).
+- **text-embedding-3-small** — эмбеддинги (1536 dim) для семантического поиска по базе знаний.
+- **Yandex SpeechKit** — распознавание голосовых сообщений.
+- **CRM (amoCRM / Bitrix24)** — интеграция при handoff.
 
-- **Groq** — временно для всех текстовых задач.
-- **RAG** — отключён (embeddings не используются).
-- **Yandex SpeechKit** — закомментирован; голосовые сообщения получают placeholder текст.
-- **CRM (amoCRM / Bitrix24)** — закомментирован; handoff только меняет статус диалога в БД.
+## Надёжность внешних API
+
+- Любые ошибки OpenAI / Yandex SpeechKit повторяются 5 раз с интервалом 5 секунд.
+- Если после ретраев API всё равно недоступен — диалог автоматически переводится на менеджера (handoff), а текст ошибки сохраняется в `dialogs.last_error_text`.
 
 ## Security Checklist
 
 - [x] Все секреты в `.env`, никогда в коде
 - [x] PII шифруется AES-256 (Fernet) перед хранением
-- [x] GPT-4o получает только токены, реальные данные не покидают РФ
+- [x] PII токенизируется перед логированием/CRM; реальные значения хранятся в TokenVault (AES-256)
 - [x] JWT access 15 мин, refresh 7 дней, blacklist в Redis
 - [x] RBAC: superadmin / tenant_admin
 - [x] Rate limiting (Redis sliding window) на IP и tenant

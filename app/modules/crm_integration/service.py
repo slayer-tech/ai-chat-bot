@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.crm_adapter import get_crm_adapter
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.db.models import Dialog
 from app.modules.conversation_memory.service import build_context
 
@@ -242,7 +242,7 @@ async def _extract_and_update_custom_fields(
     )
 
     try:
-        resp = await yandex_gpt_client.chat_completion(
+        resp = await openai_client.chat_completion(
             messages=[
                 {"role": "system", "content": "Ты аналитик. Извлекай конкретные факты из диалога. Отвечай только JSON."},
                 {"role": "user", "content": prompt},

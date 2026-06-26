@@ -1,4 +1,4 @@
-"""Intent classification via GPT-4o (direct)."""
+"""Intent classification via GPT-5.4-mini."""
 
 import json
 from typing import Tuple
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import json
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.clients.redis_client import get_redis
 
 logger = structlog.get_logger()
@@ -17,7 +17,7 @@ INTENTS = ["price", "meeting", "complaint", "handoff", "discount", "spam", "othe
 
 
 async def classify_intent(text: str) -> Tuple[str, float]:
-    """Classify intent using GPT-4o (or mini). Returns (intent, confidence).
+    """Classify intent using GPT-5.4-mini. Returns (intent, confidence).
 
     Args:
         text: Tokenized message text.
@@ -39,7 +39,7 @@ async def classify_intent(text: str) -> Tuple[str, float]:
         "Отвечай только JSON."
     )
     try:
-        resp = await yandex_gpt_client.chat_completion(
+        resp = await openai_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Сообщение: {text}"},

@@ -8,7 +8,7 @@ import structlog
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.db.models import Dialog, Message, TenantSettings
 from app.modules.smart_escalation.service import _do_handoff
 
@@ -89,7 +89,7 @@ async def check_flood(
             await _handle_flood(db, dialog, settings)
             return True
 
-    # Toxic / aggression detection via Groq
+    # Toxic / aggression detection via OpenAI GPT-5.4-mini
     if await _is_toxic(text):
         await _do_handoff(db, dialog, reason="toxic")
         return True
@@ -98,13 +98,13 @@ async def check_flood(
 
 
 async def _is_toxic(text: str) -> bool:
-    """YandexGPT Lite sentiment/toxicity check."""
+    """OpenAI GPT-5.4-mini sentiment/toxicity check."""
     system_prompt = (
         "Ты анализатор токсичности. Определи, содержит ли сообщение агрессию, оскорбления или мат. "
         "Верни строго JSON: {\"is_toxic\": true/false}"
     )
     try:
-        resp = await yandex_gpt_client.chat_completion(
+        resp = await openai_client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text},

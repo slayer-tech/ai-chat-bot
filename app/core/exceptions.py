@@ -39,7 +39,13 @@ class ValidationError(AppException):
 
 
 class ExternalAPIError(AppException):
-    """Raised when external API call fails."""
+    """Raised when external API call fails (after retries if applicable)."""
 
-    def __init__(self, message: str = "External API error") -> None:
-        super().__init__(message, status_code=502)
+    def __init__(
+        self,
+        message: str = "External API error",
+        source: str = "external_api",
+        status_code: int = 502,
+    ) -> None:
+        self.source = source
+        super().__init__(message, status_code=status_code)

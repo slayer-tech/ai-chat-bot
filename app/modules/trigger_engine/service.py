@@ -7,7 +7,7 @@ import structlog
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.clients.wazzup_client import wazzup_client
 from app.db.models import Dialog, FollowupTrigger, Message
 from app.modules.conversation_memory.service import build_context
@@ -289,7 +289,7 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                 last_bot_at=last_bot_msg.created_at.isoformat() if last_bot_msg else None,
             )
 
-        # Use custom text if provided, otherwise generate with YandexGPT
+        # Use custom text if provided, otherwise generate with OpenAI GPT-5.4-mini
         text_plain = cfg.get("text", "").strip()
         if not text_plain:
             context = await build_context(db, dialog.id)
@@ -301,7 +301,7 @@ async def process_pending_triggers(db: AsyncSession) -> None:
                 + "\n".join(f"{'Клиент' if m['role'] == 'user' else 'Ассистент'}: {m['content']}" for m in context[-5:])
             )
             try:
-                resp = await yandex_gpt_client.chat_completion(
+                resp = await openai_client.chat_completion(
                     messages=[
                         {"role": "system", "content": "Ты вежливый русскоязычный sales-ассистент. Пиши коротко, дружелюбно, не более 200 символов."},
                         {"role": "user", "content": prompt},

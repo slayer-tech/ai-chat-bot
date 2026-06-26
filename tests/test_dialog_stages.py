@@ -80,7 +80,7 @@ async def test_generate_response_uses_stage_prompt(db: AsyncSession, sample_tena
         ]
     }
 
-    with patch("app.modules.llm_router.service.yandex_gpt_client.chat_completion", new_callable=AsyncMock) as mock_chat:
+    with patch("app.modules.llm_router.service.openai_client.chat_completion", new_callable=AsyncMock) as mock_chat:
         mock_chat.return_value = mock_llm_response
         result = await generate_response(
             db, sample_tenant.id, "user-1", "Привет", require_confidence=False
@@ -102,7 +102,7 @@ async def test_generate_response_uses_stage_prompt(db: AsyncSession, sample_tena
     assert "[booking] Запись" in system_msg
     assert "ТЕКУЩИЙ" in system_msg
     assert "Приветствуй" in system_msg  # stage system_prompt
-    assert "yandexgpt" == call_args.kwargs.get("model", call_args[1].get("model"))
+    assert call_args.kwargs.get("model", call_args[1].get("model")) == "gpt-5.4-mini"
 
 
 @pytest.mark.asyncio
@@ -136,7 +136,7 @@ async def test_stage_transition_booking(db: AsyncSession, sample_tenant):
         ]
     }
 
-    with patch("app.modules.llm_router.service.yandex_gpt_client.chat_completion", new_callable=AsyncMock) as mock_chat:
+    with patch("app.modules.llm_router.service.openai_client.chat_completion", new_callable=AsyncMock) as mock_chat:
         mock_chat.return_value = mock_llm_response
         result = await generate_response(
             db, sample_tenant.id, "user-2", "Хочу записаться", require_confidence=False
@@ -172,7 +172,7 @@ async def test_unknown_stage_fallback(db: AsyncSession, sample_tenant):
         ]
     }
 
-    with patch("app.modules.llm_router.service.yandex_gpt_client.chat_completion", new_callable=AsyncMock) as mock_chat:
+    with patch("app.modules.llm_router.service.openai_client.chat_completion", new_callable=AsyncMock) as mock_chat:
         mock_chat.return_value = mock_llm_response
         result = await generate_response(
             db, sample_tenant.id, "user-3", "???", require_confidence=False
@@ -216,7 +216,7 @@ async def test_legacy_sales_script_fallback(db: AsyncSession, sample_tenant):
         ]
     }
 
-    with patch("app.modules.llm_router.service.yandex_gpt_client.chat_completion", new_callable=AsyncMock) as mock_chat:
+    with patch("app.modules.llm_router.service.openai_client.chat_completion", new_callable=AsyncMock) as mock_chat:
         mock_chat.return_value = mock_llm_response
         result = await generate_response(
             db, sample_tenant.id, "user-4", "Привет", require_confidence=False

@@ -39,16 +39,20 @@ class Settings(BaseSettings):
     # Encryption
     ENCRYPTION_KEY: str = ""
 
-    # Groq (temporary, will be replaced by YandexGPT 5.1 Pro)
-    GROQ_API_KEY: str = ""
+    # OpenAI (LLM + embeddings; single model for everything)
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_GPT_MODEL: str = "gpt-5.4-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    OPENAI_EMBEDDING_DIMENSION: int = 1536
 
-    # Wazzup (API keys are per-tenant in dashboard settings)
-    WAZZUP_BASE_URL: str = "https://api.wazzup24.com/v3"
-
-    # Yandex SpeechKit
+    # Yandex SpeechKit (speech-to-text)
     YANDEX_SPEECHKIT_API_KEY: str = ""
     YANDEX_SPEECHKIT_FOLDER_ID: str = ""
     YANDEX_SPEECHKIT_BASE_URL: str = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
+
+    # Wazzup (API keys are per-tenant in dashboard settings)
+    WAZZUP_BASE_URL: str = "https://api.wazzup24.com/v3"
 
     # CRM
     AMOCRM_BASE_URL: str = ""

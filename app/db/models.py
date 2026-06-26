@@ -138,6 +138,8 @@ class Dialog(Base):
     off_topic_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_error_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     data_deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     data_deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -238,7 +240,7 @@ class KnowledgeBaseChunk(Base):
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[Optional[list[float]]] = mapped_column(
-        Vector(256), nullable=True
+        Vector(1536), nullable=True
     )
     meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

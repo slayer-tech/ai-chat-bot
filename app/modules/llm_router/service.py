@@ -1,4 +1,4 @@
-"""LLM router: all text queries go directly to GPT-4o."""
+"""LLM router: all text queries go directly to GPT-5.4-mini."""
 
 import re
 from typing import Optional
@@ -6,9 +6,10 @@ from typing import Optional
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 
 from app.core.config import settings as app_settings
+from app.core.exceptions import ExternalAPIError
 from app.db.models import Dialog
 from app.modules.conversation_memory.service import build_context
 from app.modules.rag_knowledge_base.service import search_knowledge_with_scores
@@ -16,9 +17,9 @@ from app.modules.rag_knowledge_base.service import search_knowledge_with_scores
 logger = structlog.get_logger()
 
 # Cosine distance threshold: lower = more similar.
-# Yandex Embeddings 256-dim: practical cutoff ~0.60 for medical content.
+# OpenAI text-embedding-3-small: relevant chunks usually ~0.15-0.35.
 # Debug endpoint /api/v1/admin/knowledge/search shows actual distances.
-RAG_CONFIDENCE_THRESHOLD = 0.72
+RAG_CONFIDENCE_THRESHOLD = 0.35
 
 
 def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
@@ -42,6 +43,26 @@ def _parse_llm_tags(text: str) -> tuple[str, Optional[str], bool, bool, bool]:
     clean = re.sub(r"\[STAGE:[^\]]+\]", "", clean)
     clean = clean.strip()
     return clean, stage_name, script_complete, is_off_topic, delete_request
+
+
+async def _handle_llm_failure(db: AsyncSession, dialog: Optional[Dialog], error_text: str) -> None:
+    """Hand off dialog to manager and record the error."""
+    if not dialog:
+        return
+    from datetime import datetime, timezone
+
+    from app.modules.conversation_memory.service import summarize_dialog
+    from app.modules.crm_integration.service import handle_handoff
+    from app.modules.trigger_engine.service import _cancel_pending_triggers
+
+    dialog.status = "handoff"
+    dialog.last_error_text = f"LLM error: {error_text}"
+    dialog.last_error_at = datetime.now(timezone.utc)
+    await db.commit()
+    await _cancel_pending_triggers(db, dialog.id)
+    summary = await summarize_dialog(db, dialog.id)
+    await handle_handoff(db, dialog, "llm_api_failure", summary)
+    logger.info("llm_failure_handoff", dialog_id=dialog.id, error=error_text)
 
 
 def _build_funnel_overview(stages: list, current_stage_name: Optional[str]) -> str:
@@ -235,15 +256,29 @@ async def generate_response(
     messages.extend(conv_context)
     messages.append({"role": "user", "content": current_message})
 
-    # Smart model switching: Lite only for pure FAQ bots without sales script/stages.
-    # If tenant has a sales script or state machine — always Pro (sales requires quality).
-    use_lite = bool(good_chunks) and bool(rag_text.strip()) and not bool(sales_script_snippet.strip()) and not bool(all_stages)
-    resp = await yandex_gpt_client.chat_completion(
-        messages=messages,
-        model="yandexgpt-lite" if use_lite else "yandexgpt",
-        temperature=0.7,
-        max_tokens=1000,
-    )
+    # Single model: GPT-5.4-mini for everything.
+    try:
+        resp = await openai_client.chat_completion(
+            messages=messages,
+            model=app_settings.OPENAI_GPT_MODEL,
+            temperature=0.7,
+            max_tokens=1000,
+        )
+    except ExternalAPIError as exc:
+        logger.error(
+            "llm_openai_failed",
+            tenant_id=tenant_id,
+            dialog_id=dialog_id,
+            error=str(exc),
+        )
+        await _handle_llm_failure(db, dialog, str(exc))
+        return {
+            "text": "Извините, не удалось обработать запрос. Перевожу на менеджера.",
+            "stage": current_stage_name,
+            "script_complete": False,
+            "is_off_topic": False,
+            "delete_request": False,
+        }
     raw_answer = resp["choices"][0]["message"]["content"].strip()
     clean_text, stage_name, script_complete, is_off_topic, delete_request = _parse_llm_tags(raw_answer)
 

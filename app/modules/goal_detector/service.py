@@ -4,7 +4,7 @@ from typing import Optional
 
 import structlog
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 
 logger = structlog.get_logger()
 
@@ -47,19 +47,21 @@ async def check_goal_reached(
     )
 
     try:
-        resp = await yandex_gpt_client.complete(
-            system_prompt=system_prompt,
-            user_prompt=f"Диалог:\n{history}\n\nДостигнуто ли целевое действие ({label})?",
+        resp = await openai_client.chat_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Диалог:\n{history}\n\nДостигнуто ли целевое действие ({label})?"},
+            ],
             temperature=0.1,
             max_tokens=10,
         )
-        result = resp.strip().upper()
+        result = resp["choices"][0]["message"]["content"].strip().upper()
         reached = "ДА" in result or "YES" in result
         logger.info(
             "goal_check_result",
             target_action=target_action,
             reached=reached,
-            raw=resp,
+            raw=result,
         )
         return reached
     except Exception as exc:

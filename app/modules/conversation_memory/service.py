@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.yandex_gpt import yandex_gpt_client
+from app.clients.openai_client import openai_client
 from app.db.models import Dialog, Message
 
 
@@ -71,7 +71,7 @@ async def get_message_count(db: AsyncSession, dialog_id: int) -> int:
 
 
 async def summarize_dialog(db: AsyncSession, dialog_id: int) -> str:
-    """Summarize a dialog using GPT-4o mini and store it."""
+    """Summarize a dialog using GPT-5.4-mini and store it."""
     messages = await get_recent_messages(db, dialog_id, limit=50)
     if not messages:
         return ""
@@ -80,7 +80,7 @@ async def summarize_dialog(db: AsyncSession, dialog_id: int) -> str:
         "Сделай краткое резюме диалога на русском языке в 2-3 предложениях. "
         "Сфокусируйся на потребностях клиента и ключевых фактах."
     )
-    resp = await yandex_gpt_client.chat_completion(
+    resp = await openai_client.chat_completion(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "\n".join(texts)},

@@ -20,7 +20,7 @@ BASE_GUARD_PROMPT = """
 """.strip()
 
 
-# Template sent to YandexGPT to generate the final system prompt
+# Template sent to GPT-5.4-mini to generate the final system prompt
 # from the user's quick-survey answers.
 PROMPT_GENERATOR_TEMPLATE = """
 Ты — senior prompt engineer. На основе данных о компании сгенерируй профессиональный system prompt для AI-ассистента в мессенджере (WhatsApp/Telegram).
@@ -77,7 +77,7 @@ PROMPT_GENERATOR_TEMPLATE = """
 
 
 def build_prompt_generation_messages(answers: dict[str, str]) -> list[dict[str, str]]:
-    """Build messages for YandexGPT to generate a custom system prompt."""
+    """Build messages for GPT-5.4-mini to generate a custom system prompt."""
     template = PROMPT_GENERATOR_TEMPLATE
     for key, value in answers.items():
         placeholder = f"{{{{{key}}}}}"

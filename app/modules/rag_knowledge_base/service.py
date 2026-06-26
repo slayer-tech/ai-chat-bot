@@ -1,4 +1,4 @@
-"""RAG knowledge base with Yandex Embeddings (256-dim) + pgvector."""
+"""RAG knowledge base with OpenAI Embeddings (1536-dim) + pgvector."""
 
 import hashlib
 import json
@@ -8,8 +8,8 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.openai_client import openai_client
 from app.clients.redis_client import get_redis
-from app.clients.yandex_embeddings import yandex_embeddings_client
 from app.db.models import KnowledgeBaseChunk, KnowledgeBaseDoc
 
 logger = structlog.get_logger()
@@ -21,7 +21,7 @@ async def search_knowledge(
     query: str,
     top_k: int = 3,
 ) -> list[str]:
-    """Search knowledge base chunks by semantic similarity using Yandex Embeddings."""
+    """Search knowledge base chunks by semantic similarity using OpenAI Embeddings."""
     results = await search_knowledge_with_scores(db, tenant_id, query, top_k)
     return [r["content"] for r in results]
 
@@ -51,10 +51,10 @@ async def search_knowledge_with_scores(
         logger.warning("rag_redis_cache_error", error=str(exc))
 
     try:
-        embeddings = await yandex_embeddings_client.embed([query], model_type="text-search-query")
+        embeddings = await openai_client.embed([query])
         vector = embeddings[0]
     except Exception as exc:
-        logger.error("yandex_query_embedding_failed", error=str(exc))
+        logger.error("openai_query_embedding_failed", error=str(exc))
         return []
 
     # pgvector cosine_distance + content
@@ -108,15 +108,15 @@ async def add_chunks(
     doc_id: int,
     texts: list[str],
 ) -> None:
-    """Create chunks and Yandex embeddings for a document."""
+    """Create chunks and OpenAI embeddings for a document."""
     if not texts:
         return
 
-    # Get document embeddings via Yandex text-search-doc
+    # Get document embeddings via OpenAI
     try:
-        embeddings = await yandex_embeddings_client.embed(texts, model_type="text-search-doc")
+        embeddings = await openai_client.embed(texts)
     except Exception as exc:
-        logger.error("yandex_doc_embedding_failed", error=str(exc), doc_id=doc_id)
+        logger.error("openai_doc_embedding_failed", error=str(exc), doc_id=doc_id)
         # Fallback: store chunks without embeddings
         embeddings = [None] * len(texts)
 

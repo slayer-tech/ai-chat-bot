@@ -8,6 +8,7 @@ import httpx
 import structlog
 
 from app.clients.yandex_speechkit import speechkit_client
+from app.core.exceptions import ExternalAPIError
 
 logger = structlog.get_logger()
 VOICE_TMP_DIR = Path("/tmp/ai_bot_voice")
@@ -70,7 +71,7 @@ async def download_voice(url: str) -> bytes:
 
 
 async def process_voice_if_needed(voice_url: Optional[str], audio_bytes: Optional[bytes] = None) -> str:
-    """Download, transcribe, and return text.
+    """Download, transcribe via Yandex SpeechKit, and return text.
 
     Args:
         voice_url: URL to download audio from (ignored if audio_bytes provided).
@@ -78,6 +79,9 @@ async def process_voice_if_needed(voice_url: Optional[str], audio_bytes: Optiona
 
     Returns:
         Transcribed text or empty string if no voice_url/audio_bytes.
+
+    Raises:
+        ExternalAPIError: if SpeechKit fails after all retries.
     """
     if not voice_url and not audio_bytes:
         return ""
@@ -90,6 +94,8 @@ async def process_voice_if_needed(voice_url: Optional[str], audio_bytes: Optiona
         text = await speechkit_client.recognize(audio)
         logger.info("voice_transcribed", url=voice_url, chars=len(text))
         return text
+    except ExternalAPIError:
+        raise
     except Exception as exc:
         logger.error("voice_processing_failed", url=voice_url, error=str(exc))
-        return ""
+        raise ExternalAPIError(f"Voice processing failed: {exc}", source="voice_processing") from exc

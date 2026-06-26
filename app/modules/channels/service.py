@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.wazzup_client import wazzup_client
+from app.core.exceptions import ExternalAPIError
 from app.db.models import Dialog, Message
 from app.schemas.webhook import UnifiedMessage, WazzupMessage
 
@@ -15,6 +16,38 @@ logger = structlog.get_logger()
 
 # Delay in seconds before processing a batch of messages
 MESSAGE_DEBOUNCE_SECONDS = 10
+
+
+async def _handoff_for_voice_error(
+    db: AsyncSession,
+    dialog: Dialog,
+    voice_url: Optional[str],
+    error_text: str,
+) -> None:
+    """Hand off dialog to manager when voice transcription fails."""
+    from app.modules.conversation_memory.service import add_message, summarize_dialog
+    from app.modules.crm_integration.service import handle_handoff
+    from app.modules.trigger_engine.service import _cancel_pending_triggers
+
+    dialog.status = "handoff"
+    dialog.last_error_text = f"Voice transcription error: {error_text}"
+    dialog.last_error_at = datetime.now(timezone.utc)
+    await db.commit()
+    await _cancel_pending_triggers(db, dialog.id)
+    summary = await summarize_dialog(db, dialog.id)
+    await handle_handoff(db, dialog, "voice_transcription_failure", summary)
+    await add_message(
+        db,
+        tenant_id=dialog.tenant_id,
+        dialog_id=dialog.id,
+        role="user",
+        content_original="[Голосовое сообщение — не удалось распознать, передано менеджеру]",
+        content_tokenized=None,
+        has_voice=True,
+        voice_url=voice_url,
+    )
+    await db.commit()
+    logger.info("voice_error_handoff", dialog_id=dialog.id, error=error_text)
 
 
 async def ensure_dialog(
@@ -230,20 +263,35 @@ async def save_inbound_message(
                 return {"status": "handoff", "dialog_id": dialog_id}
             # Re-use downloaded bytes for transcription
             from app.modules.voice_processing.service import process_voice_if_needed
-            transcribed = await process_voice_if_needed(voice_url, audio_bytes=audio_bytes)
-            if transcribed:
-                text = transcribed
+            try:
+                transcribed = await process_voice_if_needed(voice_url, audio_bytes=audio_bytes)
+                if transcribed:
+                    text = transcribed
+            except ExternalAPIError as exc:
+                logger.error("voice_transcription_failed", error=str(exc))
+                await _handoff_for_voice_error(db, dialog, voice_url, str(exc))
+                return {"status": "handoff", "dialog_id": dialog_id}
         except Exception as exc:
             logger.error("voice_duration_check_failed", error=str(exc))
             from app.modules.voice_processing.service import process_voice_if_needed
+            try:
+                transcribed = await process_voice_if_needed(voice_url)
+                if transcribed:
+                    text = transcribed
+            except ExternalAPIError as exc2:
+                logger.error("voice_transcription_failed", error=str(exc2))
+                await _handoff_for_voice_error(db, dialog, voice_url, str(exc2))
+                return {"status": "handoff", "dialog_id": dialog_id}
+    elif voice_url:
+        from app.modules.voice_processing.service import process_voice_if_needed
+        try:
             transcribed = await process_voice_if_needed(voice_url)
             if transcribed:
                 text = transcribed
-    elif voice_url:
-        from app.modules.voice_processing.service import process_voice_if_needed
-        transcribed = await process_voice_if_needed(voice_url)
-        if transcribed:
-            text = transcribed
+        except ExternalAPIError as exc:
+            logger.error("voice_transcription_failed", error=str(exc))
+            await _handoff_for_voice_error(db, dialog, voice_url, str(exc))
+            return {"status": "handoff", "dialog_id": dialog_id}
 
     # Increment incoming message counter
     dialog.message_count += 1

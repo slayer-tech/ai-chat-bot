@@ -360,12 +360,12 @@ async def generate_prompt_endpoint(
     tenant_id: int = Depends(get_current_tenant_id),
     user: dict[str, Any] = Depends(require_role("tenant_admin", "superadmin")),
 ) -> dict[str, str]:
-    """Generate a custom system prompt via YandexGPT and save it."""
+    """Generate a custom system prompt via OpenAI and save it."""
     from app.core.prompts import build_prompt_generation_messages
-    from app.clients.yandex_gpt import yandex_gpt_client
+    from app.clients.openai_client import openai_client
 
     messages = build_prompt_generation_messages(data.model_dump())
-    resp = await yandex_gpt_client.chat_completion(
+    resp = await openai_client.chat_completion(
         messages=messages,
         temperature=0.4,
         max_tokens=2000,
