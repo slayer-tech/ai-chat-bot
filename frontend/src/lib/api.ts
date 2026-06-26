@@ -33,6 +33,27 @@ export interface DashboardStats {
   unique_users_90d: number;
 }
 
+function formatError(err: any, status: number): string {
+  if (typeof err === "string") return err;
+  if (err?.detail) {
+    const detail = err.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item: any) => {
+          if (typeof item === "string") return item;
+          if (item?.msg) return item.msg;
+          return String(item);
+        })
+        .filter(Boolean);
+      return messages.length ? messages.join("; ") : `HTTP ${status}`;
+    }
+  }
+  if (err?.message) return err.message;
+  if (err?.error) return err.error;
+  return `HTTP ${status}`;
+}
+
 async function fetchJson<T>(
   path: string,
   options: RequestInit = {}
@@ -51,7 +72,8 @@ async function fetchJson<T>(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const message = formatError(err, res.status);
+    throw new Error(message);
   }
 
   return res.json();
@@ -101,7 +123,7 @@ export const api = {
     }).then(async (res) => {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+        throw new Error(formatError(err, res.status));
       }
       return res.json();
     });
