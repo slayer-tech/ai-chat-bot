@@ -69,3 +69,8 @@ htmlcov/
 # Project internal log (do not commit)
 PROJECT_LOG.md
 /backups/
+
+# Uploaded assets / local test files
+*.docx
+/uploads/
+/RAG_knowledge_base_Avito.docx

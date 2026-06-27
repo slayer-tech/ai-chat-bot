@@ -56,11 +56,33 @@ def _extract_text(filename: str, content: bytes) -> str:
         return "\n".join(parts)
     if ext == "docx":
         from docx import Document
+
         doc = Document(BytesIO(content))
         parts = []
         for p in doc.paragraphs:
-            if p.text.strip():
-                parts.append(p.text.strip())
+            text = p.text.strip()
+            if not text:
+                continue
+            style = p.style
+            style_name = (style.name or "").lower() if style else ""
+            style_id = (style.style_id or "").lower() if style else ""
+            # Recognise Word heading styles in any common locale
+            is_heading = (
+                style_name.startswith("heading")
+                or style_name.startswith("заголовок")
+                or style_name.startswith("titre")
+                or style_name.startswith("überschrift")
+                or style_id.startswith("heading")
+            )
+            if is_heading:
+                # Prefer the numeric level from style name/id
+                level_str = "".join(ch for ch in (style.name or "") if ch.isdigit())
+                if not level_str:
+                    level_str = "".join(ch for ch in (style.style_id or "") if ch.isdigit())
+                level = max(1, min(6, int(level_str) if level_str else 1))
+                parts.append(f"{'#' * level} {text}")
+            else:
+                parts.append(text)
         for table in doc.tables:
             for row in table.rows:
                 row_text = " | ".join(
