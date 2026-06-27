@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, TokenResponse } from "./api";
+import { api, TokenResponse, setAuthHandlers, refreshAccessToken } from "./api";
 
 interface AuthContextType {
   token: string | null;
@@ -31,21 +31,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const access = localStorage.getItem("access_token");
-    const tid = localStorage.getItem("tenant_id");
-    const r = localStorage.getItem("role");
-    const email = localStorage.getItem("user_email");
-    if (access) {
-      setToken(access);
-      setTenantId(tid ? parseInt(tid) : null);
-      setRole(r);
-      if (email) setUser({ email });
-    }
-    setIsLoading(false);
-  }, []);
+  const clearAuth = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("tenant_id");
+    localStorage.removeItem("role");
+    localStorage.removeItem("user_email");
+    setToken(null);
+    setTenantId(null);
+    setRole(null);
+    setUser(null);
+  };
 
-  const saveTokens = (data: TokenResponse) => {
+  const applyTokens = (data: TokenResponse) => {
     localStorage.setItem("access_token", data.access_token);
     localStorage.setItem("refresh_token", data.refresh_token);
     localStorage.setItem("tenant_id", String(data.tenant_id));
@@ -55,11 +53,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(data.role);
   };
 
+  const handleLogout = () => {
+    clearAuth();
+    router.replace("/login");
+  };
+
+  const handleTokenRefreshed = (newToken: string) => {
+    setToken(newToken);
+  };
+
+  useEffect(() => {
+    setAuthHandlers(handleTokenRefreshed, handleLogout);
+
+    const access = localStorage.getItem("access_token");
+    const refresh = localStorage.getItem("refresh_token");
+    const tid = localStorage.getItem("tenant_id");
+    const r = localStorage.getItem("role");
+    const email = localStorage.getItem("user_email");
+
+    if (access) {
+      setToken(access);
+      setTenantId(tid ? parseInt(tid) : null);
+      setRole(r);
+      if (email) setUser({ email });
+      setIsLoading(false);
+    } else if (refresh) {
+      refreshAccessToken()
+        .then((newToken) => {
+          setToken(newToken);
+          setTenantId(tid ? parseInt(tid) : null);
+          setRole(r);
+          if (email) setUser({ email });
+        })
+        .catch(() => {
+          clearAuth();
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      clearAuth();
+      setIsLoading(false);
+    }
+  }, []);
+
+  const saveTokens = (data: TokenResponse, email?: string) => {
+    applyTokens(data);
+    if (email) {
+      localStorage.setItem("user_email", email);
+      setUser({ email });
+    }
+  };
+
   const login = async (email: string, password: string) => {
     const data = await api.login({ email, password });
-    localStorage.setItem("user_email", email);
-    setUser({ email });
-    saveTokens(data);
+    saveTokens(data, email);
     if (data.role === "superadmin") {
       router.push("/admin");
     } else {
@@ -73,24 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       company_name: email.split("@")[0],
     });
-    localStorage.setItem("user_email", email);
-    setUser({ email });
-    saveTokens(data);
+    saveTokens(data, email);
     router.push("/dashboard");
   };
 
   const logout = () => {
     api.logout().catch(() => {});
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("tenant_id");
-    localStorage.removeItem("role");
-    localStorage.removeItem("user_email");
-    setToken(null);
-    setTenantId(null);
-    setRole(null);
-    setUser(null);
-    router.push("/login");
+    clearAuth();
+    router.replace("/login");
   };
 
   return (

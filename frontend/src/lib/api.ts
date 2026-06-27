@@ -1,4 +1,4 @@
-const API_BASE = "";  // same origin — nginx proxies /api and /webhook to backend
+const API_BASE = ""; // same origin — nginx proxies /api and /webhook to backend
 
 export interface TokenResponse {
   access_token: string;
@@ -54,33 +54,118 @@ function formatError(err: any, status: number): string {
   return `HTTP ${status}`;
 }
 
+let isRefreshing = false;
+let refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: any) => void;
+}> = [];
+
+let onTokenRefreshed: ((token: string) => void) | null = null;
+let onLoggedOut: (() => void) | null = null;
+
+export function setAuthHandlers(
+  onRefresh: (token: string) => void,
+  onLogout: () => void
+) {
+  onTokenRefreshed = onRefresh;
+  onLoggedOut = onLogout;
+}
+
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("access_token");
+}
+
+function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("refresh_token");
+}
+
+export async function refreshAccessToken(): Promise<string> {
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      refreshQueue.push({ resolve, reject });
+    });
+  }
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    onLoggedOut?.();
+    throw new Error("Сессия завершена. Пожалуйста, войдите снова.");
+  }
+
+  isRefreshing = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Refresh-Token": refreshToken,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatError(err, res.status));
+    }
+
+    const data: TokenResponse = await res.json();
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("refresh_token", data.refresh_token);
+    onTokenRefreshed?.(data.access_token);
+
+    refreshQueue.forEach((q) => q.resolve(data.access_token));
+    refreshQueue = [];
+    return data.access_token;
+  } catch (error) {
+    refreshQueue.forEach((q) => q.reject(error));
+    refreshQueue = [];
+    onLoggedOut?.();
+    throw error;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
 async function fetchJson<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE}${path}`;
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const makeRequest = async (tokenOverride?: string): Promise<Response> => {
+    const token = tokenOverride ?? getAccessToken();
+    const url = `${API_BASE}${path}`;
+    return fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  };
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res = await makeRequest();
+
+  if (res.status === 401 && getRefreshToken()) {
+    try {
+      const newToken = await refreshAccessToken();
+      res = await makeRequest(newToken);
+    } catch {
+      throw new Error("Сессия завершена. Пожалуйста, войдите снова.");
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const message = formatError(err, res.status);
-    throw new Error(message);
+    throw new Error(formatError(err, res.status));
   }
 
   return res.json();
 }
 
 export const api = {
-  get: <T = any>(path: string, options?: RequestInit) => fetchJson<T>(path, { ...options, method: "GET" }),
+  get: <T = any>(path: string, options?: RequestInit) =>
+    fetchJson<T>(path, { ...options, method: "GET" }),
 
   register: (data: RegisterPayload) =>
     fetchJson<TokenResponse>("/api/v1/auth/register", {
@@ -98,9 +183,11 @@ export const api = {
     fetchJson<{ status: string }>("/api/v1/auth/logout", {
       method: "POST",
       headers: {
-        "X-Refresh-Token": localStorage.getItem("refresh_token") || "",
+        "X-Refresh-Token": getRefreshToken() || "",
       },
     }),
+
+  refreshAccessToken,
 
   dashboard: () => fetchJson<DashboardStats>("/api/v1/admin/dashboard"),
 
@@ -115,23 +202,42 @@ export const api = {
   uploadKnowledge: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    return fetch("/api/v1/admin/knowledge", {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    }).then(async (res) => {
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(formatError(err, res.status));
-      }
-      return res.json();
-    });
+
+    const makeRequest = async (tokenOverride?: string): Promise<Response> => {
+      const token = tokenOverride ?? getAccessToken();
+      return fetch("/api/v1/admin/knowledge", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+    };
+
+    return makeRequest()
+      .then(async (res) => {
+        if (res.status === 401 && getRefreshToken()) {
+          const newToken = await refreshAccessToken();
+          res = await makeRequest(newToken);
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(formatError(err, res.status));
+        }
+        return res.json();
+      })
+      .catch((err) => {
+        throw err;
+      });
   },
 
-  knowledgeDocs: () => fetchJson<Array<{ id: number; filename: string; status: string; created_at: string }>>("/api/v1/admin/knowledge"),
+  knowledgeDocs: () =>
+    fetchJson<Array<{ id: number; filename: string; status: string; created_at: string }>>(
+      "/api/v1/admin/knowledge"
+    ),
 
-  deleteKnowledgeDoc: (docId: number) => fetchJson<{ status: string }>(`/api/v1/admin/knowledge/${docId}`, { method: "DELETE" }),
+  deleteKnowledgeDoc: (docId: number) =>
+    fetchJson<{ status: string }>(`/api/v1/admin/knowledge/${docId}`, {
+      method: "DELETE",
+    }),
 
   generatePrompt: (data: Record<string, string>) =>
     fetchJson<{ system_prompt: string }>("/api/v1/admin/generate-prompt", {
@@ -139,9 +245,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  followups: () => fetchJson<{ followup_enabled: boolean; scenarios: Record<string, any> }>("/api/v1/admin/followups"),
+  followups: () =>
+    fetchJson<{ followup_enabled: boolean; scenarios: Record<string, any> }>(
+      "/api/v1/admin/followups"
+    ),
 
-  updateFollowups: (data: { followup_enabled: boolean; scenarios: Record<string, any> }) =>
+  updateFollowups: (data: {
+    followup_enabled: boolean;
+    scenarios: Record<string, any>;
+  }) =>
     fetchJson<{ status: string }>("/api/v1/admin/followups", {
       method: "PUT",
       body: JSON.stringify(data),
@@ -153,17 +265,39 @@ export const api = {
     }),
 
   dialogStages: () =>
-    fetchJson<Array<{ id: number; name: string; label: string; system_prompt: string | null; order_index: number; is_start: boolean; is_end: boolean; created_at: string }>>("/api/v1/admin/dialog-stages"),
+    fetchJson<
+      Array<{
+        id: number;
+        name: string;
+        label: string;
+        system_prompt: string | null;
+        order_index: number;
+        is_start: boolean;
+        is_end: boolean;
+        created_at: string;
+      }>
+    >("/api/v1/admin/dialog-stages"),
 
   seedDialogStages: () =>
-    fetchJson<{ status: string; created?: number }>("/api/v1/admin/dialog-stages/seed", { method: "POST" }),
+    fetchJson<{ status: string; created?: number }>(
+      "/api/v1/admin/dialog-stages/seed",
+      { method: "POST" }
+    ),
 
   createDialogStage: (data: Record<string, any>) =>
-    fetchJson<{ id: number }>("/api/v1/admin/dialog-stages", { method: "POST", body: JSON.stringify(data) }),
+    fetchJson<{ id: number }>("/api/v1/admin/dialog-stages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updateDialogStage: (stageId: number, data: Record<string, any>) =>
-    fetchJson<{ id: number }>(`/api/v1/admin/dialog-stages/${stageId}`, { method: "PATCH", body: JSON.stringify(data) }),
+    fetchJson<{ id: number }>(`/api/v1/admin/dialog-stages/${stageId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   deleteDialogStage: (stageId: number) =>
-    fetchJson<{ status: string }>(`/api/v1/admin/dialog-stages/${stageId}`, { method: "DELETE" }),
+    fetchJson<{ status: string }>(`/api/v1/admin/dialog-stages/${stageId}`, {
+      method: "DELETE",
+    }),
 };
