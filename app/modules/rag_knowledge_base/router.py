@@ -57,11 +57,55 @@ def _extract_text(filename: str, content: bytes) -> str:
     if ext == "docx":
         from docx import Document
         doc = Document(BytesIO(content))
-        return "\n".join(p.text for p in doc.paragraphs if p.text)
+        parts = []
+        for p in doc.paragraphs:
+            if p.text.strip():
+                parts.append(p.text.strip())
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(
+                    cell.text.strip() for cell in row.cells if cell.text.strip()
+                )
+                if row_text:
+                    parts.append(row_text)
+        return "\n\n".join(parts)
     raise ValueError(f"Unsupported file type: .{ext}")
 
 
-def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> list[str]:
+def _split_by_sentences(text: str, max_chunk_size: int, overlap: int) -> list[str]:
+    """Split a long paragraph into sentence-bounded chunks with overlap."""
+    import re
+
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        candidate = f"{current} {sentence}".strip() if current else sentence
+        if len(candidate) <= max_chunk_size:
+            current = candidate
+        else:
+            if current:
+                chunks.append(current)
+            if overlap and current:
+                tail = current[-overlap:]
+                # Try to start overlap from a sentence boundary
+                boundary = tail.find(". ")
+                if boundary != -1:
+                    current = tail[boundary + 2:] + " " + sentence
+                else:
+                    current = tail + " " + sentence
+                current = current.strip()
+            else:
+                current = sentence
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _smart_chunk(text: str, max_chunk_size: int = 700, overlap: int = 100) -> list[str]:
     """Semantic chunking preserving section boundaries, FAQ Q&A pairs and scenarios.
 
     Strategy:
@@ -197,22 +241,37 @@ def _smart_chunk(text: str, max_chunk_size: int = 1200, overlap: int = 150) -> l
 
         plain_text = "\n\n".join(b for b in plain_blocks if b).strip()
         if plain_text:
-            header_content = f"{header}\n\n{plain_text}"
-            if len(header_content) <= max_chunk_size:
-                chunks.append(header_content)
-            else:
-                paragraphs = [p.strip() for p in plain_text.split("\n\n") if p.strip()]
-                current = header
-                for para in paragraphs:
-                    candidate = f"{current}\n\n{para}" if current != header else f"{header}\n\n{para}"
-                    if len(candidate) <= max_chunk_size:
-                        current = candidate
+            paragraphs = [p.strip() for p in plain_text.split("\n\n") if p.strip()]
+            current = header
+            last_para = ""
+            for para in paragraphs:
+                candidate = (
+                    f"{current}\n\n{para}".strip()
+                    if current != header
+                    else f"{header}\n\n{para}".strip()
+                )
+                # If a single paragraph is oversized, split it by sentences.
+                if len(para) > max_chunk_size:
+                    if current and current != header:
+                        chunks.append(current)
+                        current = header
+                    for sentence_chunk in _split_by_sentences(para, max_chunk_size, overlap):
+                        chunks.append(f"{header}\n\n{sentence_chunk}".strip())
+                    last_para = para
+                    continue
+                if len(candidate) <= max_chunk_size:
+                    current = candidate
+                    last_para = para
+                else:
+                    if current and current != header:
+                        chunks.append(current)
+                    if overlap and last_para:
+                        current = f"{header}\n\n{last_para}\n\n{para}".strip()
                     else:
-                        if current and current != header:
-                            chunks.append(current.strip())
-                        current = f"{header}\n\n{para}"
-                if current and current != header:
-                    chunks.append(current.strip())
+                        current = f"{header}\n\n{para}".strip()
+                    last_para = para
+            if current and current != header:
+                chunks.append(current)
 
         for pair in faq_pairs:
             chunks.append(pair)
