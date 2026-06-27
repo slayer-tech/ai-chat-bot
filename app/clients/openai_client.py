@@ -19,6 +19,18 @@ logger = structlog.get_logger()
 MAX_RETRIES = 5
 RETRY_DELAY_SECONDS = 5
 
+# Models that require the newer `max_completion_tokens` parameter instead of
+# the legacy `max_tokens` (e.g. GPT-5.x and OpenAI reasoning series).
+_MAX_COMPLETION_TOKENS_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+
+
+def _max_tokens_param(model: str) -> str:
+    """Return the correct token-limit key for the given model."""
+    lowered = model.lower()
+    if any(lowered.startswith(prefix) for prefix in _MAX_COMPLETION_TOKENS_PREFIXES):
+        return "max_completion_tokens"
+    return "max_tokens"
+
 
 class OpenAIClient:
     """Unified async client for OpenAI API."""
@@ -45,11 +57,12 @@ class OpenAIClient:
     ) -> dict[str, Any]:
         """Internal chat completion call with retry."""
         model = model or settings.OPENAI_GPT_MODEL
+        token_key = _max_tokens_param(model)
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,  # type: ignore[arg-type]
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            token_key: max_tokens,
         }
         if tools:
             kwargs["tools"] = tools
